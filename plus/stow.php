@@ -2,7 +2,7 @@
 require_once(dirname(__FILE__)."/../include/common.inc.php");
 
 $aid = ( isset($aid) && is_numeric($aid) ) ? $aid : 0;
-$type=empty($type)? "" : $type;
+$type=empty($type)? "" : HtmlReplace($type,1);
 if($aid==0)
 {
 	ShowMsg('文档id不能为空!','javascript:window.close();');
@@ -27,7 +27,8 @@ if($arcRow['aid']=='')
 	exit();
 }
 extract($arcRow, EXTR_SKIP);
-
+$title = HtmlReplace($title,1);
+$aid = intval($aid);
 $addtime = time();
 if($type==''){
 	$row = $dsql->GetOne("Select * From `#@__member_stow` where aid='$aid' And mid='{$ml->M_ID}' AND type='' ");

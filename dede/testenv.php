@@ -1,4 +1,5 @@
 <?php
+@set_time_limit(0);
 /**
  * 系统运行环境检测
  *
@@ -17,9 +18,9 @@ $action = isset($action)? $action : '';
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=<?php echo $GLOBALS['cfg_soft_lang']; ?>">
 <title>系统运行目录权限检测</title>
-<link rel="stylesheet" type="text/css" href="img/base.css" />
-<link rel="stylesheet" type="text/css" href="img/indexbody.css" />
-<script type="text/javascript" src="../images/js/j.js" ></script>
+<link rel="stylesheet" type="text/css" href="css/base.css" />
+<link rel="stylesheet" type="text/css" href="css/indexbody.css" />
+<script type="text/javascript" src="../include/js/jquery/jquery.js" ></script>
 </head>
 <body leftmargin="8" topmargin='8' bgcolor="#FFFFFF" style="min-width:840px">
 <?php
@@ -150,7 +151,7 @@ if(!function_exists('PostHost'))
 	{
 		$typedir = str_replace($cfg_basehost, '', $row['typedir']);
 		if(preg_match("/^http:|^ftp:/i", $row['typedir'])) continue;
-		$typedir = str_replace("{cmspath}", $cfg_cmsPath, $row['typedir']);
+		$typedir = str_replace("{cmspath}", $cfg_cmspath, $row['typedir']);
 		$allPath[trim($typedir)] = array(
 			'read'=>true,    // 读取
 			'write'=>true,   // 写入
@@ -185,6 +186,42 @@ if(!function_exists('PostHost'))
 		return $dirname;
 	}
 	
+	//获取所有文件列表
+	function preg_ls($path=".", $rec=FALSE, $pat="/.*/", $ignoredir='')
+	{
+		while (substr ($path,-1,1) =="/")
+		{
+			$path=substr ($path,0,-1);
+		}
+		if (!is_dir ($path) )
+		{
+			$path=dirname ($path);
+		}
+		if ($rec!==TRUE)
+		{
+			$rec=FALSE;
+		}
+		$d=dir ($path);
+		$ret=Array ();
+		while (FALSE!== ($e=$d->read () ) )
+		{
+			if ( ($e==".") || ($e=="..") )
+			{
+				continue;
+			}
+			if ($rec && is_dir ($path."/".$e) && ($ignoredir == '' || strpos($ignoredir,$e ) === FALSE))
+			{
+				$ret = array_merge ($ret, preg_ls($path."/".$e, $rec, $pat, $ignoredir));
+				continue;
+			}
+			if (!preg_match ($pat, $e) )
+			{
+				continue;
+			}
+			$ret[] = $path."/".$e;
+		}
+		return (empty ($ret) && preg_match ($pat,basename($path))) ? Array ($path."/") : $ret;
+	}
 	
 	foreach($needDir as $key => $val)
 	{
@@ -230,6 +267,26 @@ if(!function_exists('PostHost'))
 		}
 		
 	}
+	
+	// 所有js建议只读
+	$jsDir = array(
+		'/images',
+		'/templets',
+		'/include'
+	);
+	foreach ($jsDir as $k => $v)
+	{
+		$jsfiles = preg_ls(DEDEROOT.$v, TRUE, "/.*\.(js)$/i");
+		foreach ($jsfiles as $k => $v)
+		{
+			$vv = trim(str_replace(DEDEROOT.'/', '/', $v));
+			$allPath[$vv] = array(
+				'read'=>true,    // 读取
+				'write'=>false,   // 写入
+				'execute'=>false // 执行
+			);
+		}
+	}
 ?>
 <div id="safemsg">
   <dl style="margin-left:0.5%;margin-right:0.5%; width:97%" id="item1" class="dbox">
@@ -259,14 +316,16 @@ if(!function_exists('PostHost'))
     </dd>
   </dl>
 </div>
-<div style="margin: 0 auto; width:200px"><a href="javascript:startScan();"><img src="img/btn_scan.gif" width="154" height="46" /></a></div>
+<div style="margin: 0 auto; width:200px"><a href="javascript:startScan();"><img src="images/btn_scan.gif" width="154" height="46" /></a></div>
 <script type="text/javascript">
 $ = jQuery;
 var log = "<?php
 				foreach($allPath as $key => $val)
 				{
+					if(is_dir(DEDEROOT.$key))
+					{
 				?><?php echo $key;?>|<?php
-						$rs = TestExecuteable(DEDEROOT.$key, $cfg_basehost, $cfg_cmsPath);
+						$rs = TestExecuteable(DEDEROOT.$key, $cfg_basehost, $cfg_cmspath);
 						
 						if($rs === -1)
 						{
@@ -288,6 +347,19 @@ var log = "<?php
 						else 
 							echo TestWriteable(DEDEROOT.$key) != $val['write']? "<font color='red'>错误(可写)</font>" : "<font color='green'>正常(不可写)</font>";
 						?><dedecms><?php
+					} else {
+					?><?php echo $key;?>|无需判断|<?php 
+					if($val['read'] == true)
+						echo is_readable(DEDEROOT.$key) != $val['read']? "<font color='red'>错误(不可读)</font>" : "<font color='green'>正常(可读)</font>";
+					else 
+						echo is_readable(DEDEROOT.$key) != $val['read']? "<font color='red'>错误(可读)</font>" : "<font color='green'>正常(不可读)</font>";
+					?>|<?php 
+					if($val['write'] == true)
+						echo is_writable(DEDEROOT.$key) != $val['write']? "<font color='red'>错误(不可写)</font>" : "<font color='green'>正常(可写)</font>";
+					else 
+						echo is_writable(DEDEROOT.$key) != $val['write']? "<font color='red'>错误(可写)</font>" : "<font color='green'>正常(不可写)</font>";
+					?><dedecms><?php
+					}
 				}
 				?>";
 var n = 0;
@@ -339,13 +411,12 @@ function startScan()
 {
 	setTimeout(setIntervals, 100);
 }
-changeHeight();
-$(window).resize(function()
-{
-	var newheight =  $(window).height() - 180;
-	$("#safelist").css('height', newheight + 'px');
-	var logheight = newheight;
-	$("#log").css('height', logheight + 'px');
-});
+$.ready = function(){
+	changeHeight();
+	$(window).resize(function()
+  {
+	  changeHeight();
+  });
+};
 </script>
 </body>

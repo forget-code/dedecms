@@ -1,47 +1,76 @@
 <?php
 //error_reporting(E_ALL);
 error_reporting(E_ALL || ~E_NOTICE);
-define('DEDEINC', ereg_replace("[/\\]{1,}",'/',dirname(__FILE__) ) );
-define('DEDEROOT', ereg_replace("[/\\]{1,}",'/',substr(DEDEINC,0,-8) ) );
+define('DEDEINC', ereg_replace("[/\\]{1,}", '/', dirname(__FILE__) ) );
+define('DEDEROOT', ereg_replace("[/\\]{1,}", '/', substr(DEDEINC,0,-8) ) );
 define('DEDEDATA', DEDEROOT.'/data');
 define('DEDEMEMBER', DEDEROOT.'/member');
+define('DEDETEMPLATE', DEDEROOT.'/templets');
 
-//检查和注册外部提交的变量
+//开启register_globals会有诸多不安全可能性，因此强制要求关闭register_globals
+if ( ini_get('register_globals') )
+{
+    exit('<a href="http://docs.dedecms.com/doku.php?id=register_globals">php.ini register_globals must is Off! </a>');
+}
+
+//禁止 session.auto_start
+if ( ini_get('session.auto_start') != 0 )
+{
+    exit('<a href="http://docs.dedecms.com/doku.php?id=session_auto_start">php.ini session.auto_start must is 0 ! </a>');
+}
+
+//是否启用mb_substr替换cn_substr来提高效率
+$cfg_is_mb = $cfg_is_iconv = false;
+if(function_exists('mb_substr')) $cfg_is_mb = true;
+if(function_exists('iconv_substr')) $cfg_is_iconv = true;
+
+function _RunMagicQuotes(&$svar)
+{
+    if(!get_magic_quotes_gpc())
+    {
+        if( is_array($svar) )
+        {
+            foreach($svar as $_k => $_v) $svar[$_k] = _RunMagicQuotes($_v);
+        }
+        else
+        {
+            if( strlen($svar)>0 && preg_match('#^(cfg_|GLOBALS|_GET|_POST|_COOKIE)#',$svar) )
+            {
+              exit('Request var not allow!');
+            }
+            $svar = addslashes($svar);
+        }
+    }
+    return $svar;
+}
+
+//检查和注册外部提交的变量   (2011.8.10 修改登录时相关过滤)
 function CheckRequest(&$val) {
 	if (is_array($val)) {
 		foreach ($val as $_k=>$_v) {
+			if($_k == 'nvarname') continue;
 			CheckRequest($_k); 
 			CheckRequest($val[$_k]);
 		}
 	} else
 	{
-		if( strlen($val)>0 && preg_match('#^(cfg_|GLOBALS)#',$val) )
+		if( strlen($val)>0 && preg_match('#^(cfg_|GLOBALS|_GET|_POST|_COOKIE)#',$val)  )
 		{
 			exit('Request var not allow!');
 		}
 	}
 }
-CheckRequest($_REQUEST);
 
-function _RunMagicQuotes(&$svar)
-{
-	if(!get_magic_quotes_gpc())
-	{
-		if( is_array($svar) )
-		{
-			foreach($svar as $_k => $_v) $svar[$_k] = _RunMagicQuotes($_v);
-		}
-		else
-		{
-			$svar = addslashes($svar);
-		}
-	}
-	return $svar;
-}
+//var_dump($_REQUEST);exit;
+CheckRequest($_REQUEST);
 
 foreach(Array('_GET','_POST','_COOKIE') as $_request)
 {
-	foreach($$_request as $_k => $_v) ${$_k} = _RunMagicQuotes($_v);
+	foreach($$_request as $_k => $_v) 
+	{
+		if($_k == 'nvarname') ${$_k} = $_v;
+		else ${$_k} = _RunMagicQuotes($_v);
+	}
 }
 
 //系统相关变量检测
@@ -76,6 +105,14 @@ if($_FILES)
 //数据库配置文件
 require_once(DEDEDATA.'/common.inc.php');
 
+//载入系统验证安全配置
+if(file_exists(DEDEDATA.'/safe/inc_safe_config.php'))
+{
+	require_once(DEDEDATA.'/safe/inc_safe_config.php');
+	if(!empty($safe_faqs)) $safefaqs = unserialize($safe_faqs);
+}
+
+
 //php5.1版本以上时区设置
 //由于这个函数对于是php5.1以下版本并无意义，因此实际上的时间调用，应该用MyDate函数调用
 if(PHP_VERSION > '5.1')
@@ -102,6 +139,7 @@ else
 //模板的存放目录
 $cfg_templets_dir = $cfg_cmspath.'/templets';
 $cfg_templeturl = $cfg_mainsite.$cfg_templets_dir;
+$cfg_templets_skin = empty($cfg_df_style)? $cfg_mainsite.$cfg_templets_dir."/default" : $cfg_mainsite.$cfg_templets_dir."/$cfg_df_style";
 
 //cms安装目录的网址
 $cfg_cmsurl = $cfg_mainsite.$cfg_cmspath;
@@ -141,7 +179,7 @@ $cfg_soft_dir = $cfg_medias_dir.'/soft';
 $cfg_other_medias = $cfg_medias_dir.'/media';
 
 //软件摘要信息，****请不要删除本项**** 否则系统无法正确接收系统漏洞或升级信息
-$cfg_version = 'V53_1_UTF8';
+$cfg_version = 'V56_UTF8';
 $cfg_soft_lang = 'utf-8';
 $cfg_soft_public = 'base';
 
@@ -154,7 +192,18 @@ $art_shortname = $cfg_df_ext = '.html';
 $cfg_df_namerule = '{typedir}/{Y}/{M}{D}/{aid}'.$cfg_df_ext;
 
 //新建目录的权限，如果你使用别的属性，本程不保证程序能顺利在Linux或Unix系统运行
-$cfg_dir_purview = 0755;
+if(isset($cfg_ftp_mkdir) && $cfg_ftp_mkdir=='Y')
+{
+	$cfg_dir_purview = '0755';
+}
+else
+{
+	$cfg_dir_purview = 0755;
+}
+
+
+//会员是否使用精简模式（已禁用）
+$cfg_mb_lit = 'N';
 
 //特殊全局变量
 $_sys_globals['curfile'] = '';
@@ -162,9 +211,19 @@ $_sys_globals['typeid'] = 0;
 $_sys_globals['typename'] = '';
 $_sys_globals['aid'] = 0;
 
+if(empty($cfg_addon_savetype))
+{
+	$cfg_addon_savetype = 'Ymd';
+}
+if($cfg_sendmail_bysmtp=='Y' && !empty($cfg_smtp_usermail))
+{
+	$cfg_adminemail = $cfg_smtp_usermail;
+}
+
 if(!isset($cfg_NotPrintHead)) {
 	header("Content-Type: text/html; charset={$cfg_soft_lang}");
 }
+
 
 //引入数据库类
 require_once(DEDEINC.'/dedesql.class.php');

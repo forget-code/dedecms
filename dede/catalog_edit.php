@@ -11,7 +11,7 @@ $id = isset($id) ? intval($id) : 0;
 CheckPurview('t_Edit,t_AccEdit');
 
 //检查栏目操作许可
-CheckCatalog($id,"你无权更改本栏目！");
+CheckCatalog($id, '你无权更改本栏目！');
 
 /*-----------------------
 function action_save()
@@ -54,6 +54,7 @@ if($dopost=="save")
      corank='$corank',
      description='$description',
      keywords='$keywords',
+     seotitle='$seotitle',
      moresite='$moresite',
      `cross`='$cross',
      `content`='$content',
@@ -164,6 +165,7 @@ if($topid>0)
 		}
 	}
 }
+$myrow['content']=empty($myrow['content'])? "&nbsp;" : $myrow['content'];
 
 //读取频道模型信息
 $channelid = $myrow['channeltype'];

@@ -1,18 +1,10 @@
 <?php
-if(!defined('DEDEINC'))
-{
-	exit("dedecms");
-}
+if(!defined('DEDEINC'))	exit('Request Error!');
 
-if(!isset($cfg_mainsite))
-{
-	extract($GLOBALS, EXTR_SKIP);
-}
+if(!isset($cfg_mainsite))	extract($GLOBALS, EXTR_SKIP);
 global $PubFields,$pTypeArrays,$idArrary,$envs,$v1,$v2;
-$pTypeArrays = array();
-$idArrary = array();
-$PubFields = array();
-$envs = array();
+
+$pTypeArrays = $idArrary = $PubFields = $envs = array();
 $PubFields['phpurl'] = $cfg_phpurl;
 $PubFields['indexurl'] = $cfg_mainsite.$cfg_indexurl;
 $PubFields['templeturl'] = $cfg_templeturl;
@@ -75,13 +67,21 @@ $money=0, $filename='',$moresite=0,$siteurl='',$sitepath='')
 }
 
 //获得新文件名(本函数会自动创建目录)
-function GetFileNewName($aid,$typeid,$timetag,$title,$ismake=0,$rank=0,$namerule='',$typedir='',$money=0,$filename='')
+ function GetFileNewName($aid,$typeid,$timetag,$title,$ismake=0,$rank=0,$namerule='',$typedir='',$money=0,$filename='')
 {
+	global $cfg_arc_dirname;
 	$articlename = GetFileName($aid,$typeid,$timetag,$title,$ismake,$rank,$namerule,$typedir,$money,$filename);
+	
 	if(ereg("\?",$articlename))
 	{
 		return $articlename;
 	}
+	
+	if($cfg_arc_dirname=='Y' && ereg("/$", $articlename))
+	{
+		$articlename = $articlename."index.html";
+	}
+	
 	$slen = strlen($articlename)-1;
 	for($i=$slen;$i>=0;$i--)
 	{
@@ -99,7 +99,12 @@ function GetFileNewName($aid,$typeid,$timetag,$title,$ismake=0,$rank=0,$namerule
 //获得文件相对于主站点根目录的物理文件名(动态网址返回url)
 function GetFileName($aid,$typeid,$timetag,$title,$ismake=0,$rank=0,$namerule='',$typedir='',$money=0,$filename='')
 {
-	global $cfg_rewrite;
+	global $cfg_rewrite, $cfg_cmspath, $cfg_arcdir, $cfg_special, $cfg_arc_dirname;
+	//没指定栏目时用固定规则（专题）
+	if(empty($namerule)) {
+		$namerule = $cfg_special.'/arc-{aid}.html';
+		$typeid = -1;
+	}
 	if($rank!=0 || $ismake==-1 || $typeid==0 || $money>0)
 	{
 		//动态文章
@@ -139,6 +144,10 @@ function GetFileName($aid,$typeid,$timetag,$title,$ismake=0,$rank=0,$namerule=''
 			$articleRule = str_replace('{py}',GetPinyin($title,1).'_'.$aid,$articleRule);
 		}
 		$articleUrl = '/'.ereg_replace('^/','',$articleRule);
+		if(ereg("index\.html", $articleUrl) && $cfg_arc_dirname=='Y')
+		{
+			$articleUrl = str_replace('index.html', '', $articleUrl);
+		}
 		return $articleUrl;
 	}
 }
@@ -147,6 +156,7 @@ function GetFileName($aid,$typeid,$timetag,$title,$ismake=0,$rank=0,$namerule=''
 //对于使用封面文件和单独页面的情况，强制使用默认页名称
 function GetTypeUrl($typeid,$typedir,$isdefault,$defaultname,$ispart,$namerule2,$moresite=0,$siteurl='',$sitepath='')
 {
+	global $cfg_typedir_df;
 	$typedir = MfTypedir($typedir);
 	$sitepath = MfTypedir($sitepath);
 	if($isdefault==-1)
@@ -167,8 +177,11 @@ function GetTypeUrl($typeid,$typedir,$isdefault,$defaultname,$ispart,$namerule2,
 			$reurl = str_replace("{page}","1",$namerule2);
 			$reurl = str_replace("{tid}",$typeid,$reurl);
 			$reurl = str_replace("{typedir}",$typedir,$reurl);
-		} else {
-			$reurl = $typedir.'/'.$defaultname;
+		}
+		else
+		{
+			if($cfg_typedir_df=='N' || $isdefault==0) $reurl = $typedir.'/'.$defaultname;
+			else $reurl = $typedir.'/';
 		}
 	}
 
@@ -207,51 +220,59 @@ function GetTopids($tid)
 //获取上级ID列表
 function GetParentIds($tid)
 {
-	global $_Cs;
+	global $cfg_Cs;
 	$GLOBALS['pTypeArrays'][] = $tid;
-	if(!is_array($_Cs))
+	if(!is_array($cfg_Cs))
 	{
 		require_once(DEDEROOT."/data/cache/inc_catalog_base.inc");
 	}
-	if(!isset($_Cs[$tid]) || $_Cs[$tid][0]==0)
+	if(!isset($cfg_Cs[$tid]) || $cfg_Cs[$tid][0]==0)
 	{
 		return $GLOBALS['pTypeArrays'];
 	}
 	else
 	{
-		return GetParentIds($_Cs[$tid][0]);
+		return GetParentIds($cfg_Cs[$tid][0]);
 	}
+}
+
+//检测栏目是否是另一个栏目的父目录
+function IsParent($sid, $pid)
+{
+	$pTypeArrays = GetParentIds($sid);
+	return in_array($pid, $pTypeArrays);
 }
 
 //获取一个类目的顶级类目id
 function GetTopid($tid)
 {
-	global $_Cs;
-	if(!is_array($_Cs))
+	global $cfg_Cs;
+	if(!is_array($cfg_Cs))
 	{
 		require_once(DEDEROOT."/data/cache/inc_catalog_base.inc");
 	}
-	if(!isset($_Cs[$tid][0]) || $_Cs[$tid][0]==0)
+	if(!isset($cfg_Cs[$tid][0]) || $cfg_Cs[$tid][0]==0)
 	{
 		return $tid;
 	}
 	else
 	{
-		return GetTopid($_Cs[$tid][0]);
+		return GetTopid($cfg_Cs[$tid][0]);
 	}
 }
 
 //获得某id的所有下级id
 function GetSonIds($id,$channel=0,$addthis=true)
 {
-	global $_Cs;
+	global $cfg_Cs;
 	$GLOBALS['idArray'] = array();
-	if( !is_array($_Cs) )
+	if( !is_array($cfg_Cs) )
 	{
 		require_once(DEDEROOT."/data/cache/inc_catalog_base.inc");
 	}
-	GetSonIdsLogic($id,$_Cs,$channel,$addthis);
+	GetSonIdsLogic($id,$cfg_Cs,$channel,$addthis);
 	$rquery = join(',',$GLOBALS['idArray']);
+	$rquery = preg_replace("/,$/", '', $rquery); 
 	return $rquery;
 }
 
@@ -274,7 +295,7 @@ function GetSonIdsLogic($id,$sArr,$channel=0,$addthis=false)
 //栏目目录规则
 function MfTypedir($typedir)
 {
-	if(eregi("^http:",$typedir)) return $typedir;
+	if(eregi("^http:|^ftp:",$typedir)) return $typedir;
 	$typedir = str_replace("{cmspath}",$GLOBALS['cfg_cmspath'],$typedir);
 	$typedir = ereg_replace("/{1,}","/",$typedir);
 	return $typedir;
@@ -309,10 +330,10 @@ function FillAttsDefault(&$atts,$attlist)
 }
 
 //给块标记赋值
-function MakeOneTag(&$dtp,&$refObj)
+function MakeOneTag(&$dtp, &$refObj, $parfield='Y')
 {
 	$alltags = array();
-
+	$dtp->setRefObj($refObj);
 	//读取自由调用tag列表
 	$dh = dir(DEDEINC.'/taglib');
 	while($filename = $dh->read())
@@ -332,12 +353,23 @@ function MakeOneTag(&$dtp,&$refObj)
 	foreach($dtp->CTags as $tagid=>$ctag)
 	{
 		$tagname = $ctag->GetName();
-		if($tagname=='field')
+		if($tagname=='field' && $parfield=='Y')
 		{
 			$vname = $ctag->GetAtt('name');
-			if(isset($refObj->Fields[$vname]))
+			if( $vname=='array' && isset($refObj->Fields) )
+			{
+				$dtp->Assign($tagid,$refObj->Fields);
+			}
+			else if(isset($refObj->Fields[$vname]))
 			{
 				$dtp->Assign($tagid,$refObj->Fields[$vname]);
+			}
+			else if($ctag->GetAtt('noteid') != '')
+			{
+				if( isset($refObj->Fields[$vname.'_'.$ctag->GetAtt('noteid')]) )
+				{
+					$dtp->Assign($tagid, $refObj->Fields[$vname.'_'.$ctag->GetAtt('noteid')]);
+				}
 			}
 			continue;
 		}
@@ -479,10 +511,36 @@ function Quote_replace($quote)
 	$quote = str_replace('{title}','<div class="decmt-title"><span class="username">',$quote);
 	$quote = str_replace('{/title}','</span></div>',$quote);
 	$quote = str_replace('&lt;br/&gt;','<br>',$quote);
+    $quote = str_replace('&lt;', '<', $quote);
+	$quote = str_replace('&gt;', '>', $quote);
 	$quote = str_replace('{content}','<div class="decmt-content">',$quote);
 	$quote = str_replace('{/content}','</div>',$quote);
 	$quote = str_replace('{/quote}','</div>',$quote);
 	return $quote;
+}
+
+//获取、写入指定cacheid的块
+function GetCacheBlock($cacheid)
+{
+	global $cfg_puccache_time;
+	$cachefile = DEDEDATA.'/cache/'.$cacheid.'.inc';
+	if(!file_exists($cachefile) || filesize($cachefile)==0 || 
+	  $cfg_puccache_time==0 || time() - filemtime($cachefile) > $cfg_puccache_time)
+	{
+		return '';
+	}
+	$fp = fopen($cachefile, 'r');
+	$str = @fread($fp, filesize($cachefile));
+	fclose($fp);
+	return $str;
+}
+
+function WriteCacheBlock($cacheid, $str)
+{
+	$cachefile = DEDEDATA.'/cache/'.$cacheid.'.inc';
+	$fp = fopen($cachefile, 'w');
+	$str = fwrite($fp, $str);
+	fclose($fp);
 }
 
 ?>

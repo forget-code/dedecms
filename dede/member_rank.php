@@ -6,7 +6,7 @@ if(empty($dopost))
 	$dopost = '';
 }
 
-//ä¿å­˜æ›´æ”¹
+//±£´æ¸ü¸Ä
 if($dopost=='save')
 {
 	$startID = 1;
@@ -38,32 +38,23 @@ if($dopost=='save')
 	}
 	if(isset($check_new))
 	{
-		if($rank_new>0 && $name_new!='' && $money_new!='')
+		if($rank_new > 0 && $name_new != '' && $rank_new > 10)
 		{
 			$inquery = "Insert Into `#@__arcrank`(`rank`,`membername`,`adminrank`,`money`,`scores`,`purviews`) Values('$rank_new','$name_new','5','$money_new','$scores',''); ";
 			$dsql->ExecuteNoneQuery($inquery);
 		}
 	}
-	echo "<script> alert('æˆåŠŸæ›´æ–°ä¼šå‘˜ç­‰çº§è¡¨ï¼'); </script>";
+	echo "<script> alert('³É¹¦¸üĞÂ»áÔ±µÈ¼¶±í£¡'); </script>";
 }
 if($dopost == 'del')
 {
 	$dsql->ExecuteNoneQuery("Delete From `#@__arcrank` where id='$id' And rank<>10");
-	ShowMsg("åˆ é™¤æˆåŠŸï¼","member_rank.php");
+	ShowMsg("É¾³ı³É¹¦£¡","member_rank.php");
 	exit();
 }
-if($dopost == 'concrete')
-{
-	$row = $dsql->GetOne("Select * From `#@__arcrank` where id = '$id'");
-	$k = '1';
-	include DedeInclude('templets/member_rank_concrete.htm');
-	exit();
-}
-else 
-{
-	$dsql->SetQuery("Select * From `#@__arcrank` where rank>0 order by rank");
+
+$dsql->SetQuery("Select * From `#@__arcrank` where rank>0 order by rank");
 $dsql->Execute();
-	include DedeInclude('templets/member_rank.htm');
-}
+include DedeInclude('templets/member_rank.htm');
 
 ?>

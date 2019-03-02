@@ -1,8 +1,6 @@
 <?php
-if(!defined('DEDEMEMBER'))
-{
-	exit("dedecms");
-}
+if(!defined('DEDEMEMBER')) exit('dedecms');
+
 require_once(DEDEINC."/image.func.php");
 require_once(DEDEINC."/oxwindow.class.php");
 
@@ -14,6 +12,16 @@ if($ckhash!=$idhash)
 {
 	ShowMsg('校对码错误，你没权限修改此文档或操作不合法！','-1');
 	exit();
+}
+$svali = GetCkVdValue();
+if(preg_match("/3/",$safe_gdopen)){
+	if(strtolower($vdcode)!=$svali || $svali=='')
+	{
+		ResetVdValue();
+		ShowMsg('验证码错误！', '-1');
+		exit();
+	}
+	
 }
 if($typeid==0)
 {
@@ -52,15 +60,16 @@ else
 //对保存的内容进行处理
 $title = cn_substrR(HtmlReplace($title,1),$cfg_title_maxlen);
 $writer =  cn_substrR(HtmlReplace($writer,1),20);
+if(empty($description)) $description = '';
 $description = cn_substrR(HtmlReplace($description,1),250);
 $keywords = cn_substrR(HtmlReplace($tags,1),30);
 $mid = $cfg_ml->M_ID;
-
+$isadmin = ($cfg_ml->fields['matt']==10 ? true : false);
 //处理上传的缩略图
-$litpic = MemberUploads('litpic',$oldlitpic,$mid,'image','',$cfg_ddimg_width,$cfg_ddimg_height,false);
-if($litpic!='')
+$litpic = MemberUploads('litpic', $oldlitpic, $mid, 'image', '', $cfg_ddimg_width, $cfg_ddimg_height, false, $isadmin);
+if($litpic != '')
 {
-	SaveUploadInfo($title,$litpic,1);
+	SaveUploadInfo($title, $litpic, 1);
 }
 else
 {

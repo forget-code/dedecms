@@ -33,6 +33,7 @@ class SearchView
 	var $Keywords;
 	var $OrderBy;
 	var $SearchType;
+	var $mid;
 	var $KType;
 	var $Keyword;
 	var $SearchMax;
@@ -43,7 +44,7 @@ class SearchView
 
 	//php5构造函数
 	function __construct($typeid,$keyword,$orderby,$achanneltype="all",
-	$searchtype='',$starttime=0,$upagesize=20,$kwtype=1)
+	$searchtype='',$starttime=0,$upagesize=20,$kwtype=1,$mid=0)
 	{
 		global $cfg_search_max,$cfg_search_maxrc,$cfg_search_time;
 		if(empty($upagesize))
@@ -60,18 +61,12 @@ class SearchView
 		$this->SearchMax = $cfg_search_max;
 		$this->SearchMaxRc = $cfg_search_maxrc;
 		$this->SearchTime = $cfg_search_time;
+		$this->mid = $mid;
 		$this->RsFields = '';
-		if($searchtype=="")
-		{
-			$this->SearchType = "titlekeyword";
-		}
-		else
-		{
-			$this->SearchType = $searchtype;
-		}
+		$this->SearchType = $searchtype=='' ? 'titlekeyword' : $searchtype;
 		$this->dsql = $GLOBALS['dsql'];
 		$this->dtp = new DedeTagParse();
-		$this->dtp->refObj = $this;
+		$this->dtp->SetRefObj($this);
 		$this->dtp->SetNameSpace("dede","{","}");
 		$this->dtp2 = new DedeTagParse();
 		$this->dtp2->SetNameSpace("field","[","]");
@@ -79,6 +74,12 @@ class SearchView
 		$this->Keywords = $this->GetKeywords($keyword);
 
 		//设置一些全局参数的值
+		if($this->TypeID=="0"){
+			$this->ChannelTypeid=1;
+		}else{
+			$row =$this->dsql->GetOne("Select channeltype From `#@__arctype` where id={$this->TypeID}");
+			$this->ChannelTypeid=$row['channeltype'];
+		}
 		foreach($GLOBALS['PubFields'] as $k=>$v)
 		{
 			$this->Fields[$k] = $v;
@@ -102,14 +103,14 @@ class SearchView
 		{
 			$this->dsql->ExecuteNoneQuery("Update `#@__search_keywords` set result='".$this->TotalResult."' where keyword='".addslashes($keyword)."'; ");
 		}
-
+	
 	}
 
 	//php4构造函数
 	function SearchView($typeid,$keyword,$orderby,$achanneltype="all",
-	$searchtype="",$starttime=0,$upagesize=20,$kwtype=1)
+	$searchtype="",$starttime=0,$upagesize=20,$kwtype=1,$mid=0)
 	{
-		$this->__construct($typeid,$keyword,$orderby,$achanneltype,$searchtype,$starttime,$upagesize,$kwtype);
+		$this->__construct($typeid,$keyword,$orderby,$achanneltype,$searchtype,$starttime,$upagesize,$kwtype,$mid);
 	}
 
 	//关闭相关资源
@@ -120,16 +121,18 @@ class SearchView
 	//获得关键字的分词结果，并保存到数据库
 	function GetKeywords($keyword)
 	{
+		global $cfg_soft_lang;
 		$keyword = cn_substr($keyword,50);
-
 		$row = $this->dsql->GetOne("Select spwords From `#@__search_keywords` where keyword='".addslashes($keyword)."'; ");
 		if(!is_array($row))
 		{
 			if(strlen($keyword)>7)
 			{
-				$sp = new SplitWord();
-				$keywords = $sp->SplitRMM($keyword);
-				$sp->Clear();
+				//echo $keyword;
+				$sp = new SplitWord($cfg_soft_lang, $cfg_soft_lang);
+				$sp->SetSource($keyword, $cfg_soft_lang, $cfg_soft_lang);
+				$sp->StartAnalysis();
+				$keywords = $sp->GetFinallyResult(' ');
 				$keywords = ereg_replace("[ ]{1,}"," ",trim($keywords));
 			}
 			else
@@ -157,23 +160,23 @@ class SearchView
 		foreach($ks as $k)
 		{
 			$k = trim($k);
-			if(strlen($k)<2)
+			if(strlen($k)<1)
 			{
 				continue;
 			}
-			if(ord($k[0])>0x80 && strlen($k)<3)
+			if(ord($k[0])>0x80 && strlen($k)<2)
 			{
 				continue;
 			}
 			$k = addslashes($k);
-
-			if($this->SearchType=="title")
-			{
+			if($this->ChannelType < 0 || $this->ChannelTypeid < 0){
 				$kwsqls[] = " arc.title like '%$k%' ";
-			}
-			else
-			{
-				$kwsqls[] = " CONCAT(arc.title,' ',arc.writer,' ',arc.keywords) like '%$k%' ";
+			}else{
+				if($this->SearchType=="title"){
+					$kwsqls[] = " arc.title like '%$k%' ";
+				}else{
+					$kwsqls[] = " CONCAT(arc.title,' ',arc.writer,' ',arc.keywords) like '%$k%' ";
+				}
 			}
 		}
 		if(!isset($kwsqls[0]))
@@ -206,17 +209,15 @@ class SearchView
 			{
 				continue;
 			}
-			if(ord($k[0])>0x80 && strlen($k)<3)
+			if(ord($k[0])>0x80 && strlen($k)<2)
 			{
 				continue;
 			}
 			$k = addslashes($k);
 			if($lsql=='')
 			{
-				$lsql = $lsql." CONCAT(spwords,' ') like '%$k %' ";
-			}
-			else
-			{
+				$lsql = $lsql." CONCAT(spwords,' ') like '%$k %' ";	
+			}else{
 				$lsql = $lsql." Or CONCAT(spwords,' ') like '%$k %' ";
 			}
 		}
@@ -253,8 +254,8 @@ class SearchView
 	//加粗关键字
 	function GetRedKeyWord($fstr)
 	{
+		//echo $fstr;
 		$ks = explode(' ',$this->Keywords);
-		$kwsql = '';
 		foreach($ks as $k)
 		{
 			$k = trim($k);
@@ -262,7 +263,7 @@ class SearchView
 			{
 				continue;
 			}
-			if(ord($k[0])>0x80 && strlen($k)<3)
+			if(ord($k[0])>0x80 && strlen($k)<2)
 			{
 				continue;
 			}
@@ -278,6 +279,7 @@ class SearchView
 		if(isset($GLOBALS['TotalResult']))
 		{
 			$this->TotalResult = $GLOBALS['TotalResult'];
+			$this->TotalResult = is_numeric($this->TotalResult)? $this->TotalResult : "";
 		}
 		if(isset($GLOBALS['PageNo']))
 		{
@@ -291,7 +293,7 @@ class SearchView
 		$ksqls = array();
 		if($this->StartTime > 0)
 		{
-			$ksqls = " arc.senddate>'".$this->StartTime."' ";
+			$ksqls[] = " arc.senddate>'".$this->StartTime."' ";
 		}
 		if($this->TypeID > 0)
 		{
@@ -301,9 +303,22 @@ class SearchView
 		{
 			$ksqls[] = " arc.channel='".$this->ChannelType."'";
 		}
+		if($this->mid > 0)
+		{
+			$ksqls[] = " arc.mid = '".$this->mid."'";
+		}
 		$ksqls[] = " arc.arcrank > -1 ";
 		$this->AddSql = ($ksql=='' ? join(' And ',$ksqls) : join(' And ',$ksqls)." And ($ksql)" );
-		$cquery = "Select * From `#@__archives` arc where ".$this->AddSql;
+		if($this->ChannelType < 0 || $this->ChannelTypeid< 0){
+			if($this->ChannelType=="0") $id=$this->ChannelTypeid;
+			else $id=$this->ChannelType;
+			$row =$this->dsql->GetOne("Select addtable From `#@__channeltype` Where id=$id");
+			$addtable = trim($row['addtable']);
+			$this->AddTable=$addtable;
+		}else{
+			$this->AddTable="#@__archives";
+		}
+    $cquery = "Select * From `{$this->AddTable}` arc where ".$this->AddSql;
 		$hascode = md5($cquery);
 		$row = $this->dsql->GetOne("Select * From `#@__arccache` where `md5hash`='".$hascode."' ");
 		$uptime = time();
@@ -323,7 +338,8 @@ class SearchView
 				$aidarr[] = 0;
 				while($row = $this->dsql->getarray())
 				{
-					$aidarr[] = $row['id'];
+					if($this->ChannelType< 0 ||$this->ChannelTypeid< 0) $aidarr[] = $row['aid'];
+					else $aidarr[] = $row['id'];
 				}
 				$nums = count($aidarr)-1;
 				$aids = implode(',', $aidarr);
@@ -417,6 +433,8 @@ class SearchView
 			}//End if
 
 		}
+		global $keyword,  $oldkeyword;
+		if(!empty($oldkeyword)) $keyword = $oldkeyword;
 		$this->dtp->Display();
 	}
 
@@ -425,83 +443,57 @@ class SearchView
 	$imgwidth=120,$imgheight=90,$achanneltype="all",$orderby="default",$innertext="",$tablewidth="100")
 	{
 		$typeid=$this->TypeID;
-		if($row=="")
-		{
-			$row = 10;
-		}
-		if($limitstart=="")
-		{
-			$limitstart = 0;
-		}
-		if($titlelen=="")
-		{
-			$titlelen = 30;
-		}
-		if($infolen=="")
-		{
-			$infolen = 250;
-		}
-		if($imgwidth=="")
-		{
-			$imgwidth = 120;
-		}
-		if($imgheight=="")
-		{
-			$imgheight = 120;
-		}
-		if($achanneltype=="")
-		{
-			$achanneltype = "0";
-		}
-		if($orderby=="")
-		{
-			$orderby="default";
-		}
-		else
-		{
-			$orderby=strtolower($orderby);
-		}
+		if($row=='') $row = 10;
+		if($limitstart=='') $limitstart = 0;
+		if($titlelen=='') $titlelen = 30;
+		if($infolen=='') $infolen = 250;
+		if($imgwidth=='') $imgwidth = 120;
+		if($imgheight='') $imgheight = 120;
+		if($achanneltype=='') $achanneltype = '0';
+		$orderby = $orderby=='' ? 'default' : strtolower($orderby);
 		$tablewidth = str_replace("%","",$tablewidth);
-		if($tablewidth=="")
-		{
-			$tablewidth=100;
-		}
-		if($col=="")
-		{
-			$col=1;
-		}
+		if($tablewidth=='') $tablewidth=100;
+		if($col=='') $col=1;
 		$colWidth = ceil(100/$col);
 		$tablewidth = $tablewidth."%";
 		$colWidth = $colWidth."%";
 		$innertext = trim($innertext);
-		if($innertext=="")
+		if($innertext=='')
 		{
 			$innertext = GetSysTemplets("search_list.htm");
 		}
 
 		//排序方式
-		$ordersql = "";
-		if($orderby=="senddate")
-		{
-			$ordersql=" order by arc.senddate desc";
-		}
-		else if($orderby=="pubdate")
-		{
-			$ordersql=" order by arc.pubdate desc";
-		}
-		else if($orderby=="id")
-		{
-			$ordersql="  order by arc.id desc";
-		}
-		else
-		{
-			$ordersql=" order by arc.sortrank desc";
+		$ordersql = '';
+		if($this->ChannelType< 0 ||$this->ChannelTypeid< 0){
+			if($orderby=="id"){
+				$ordersql="order by arc.aid desc";
+			}else{
+				$ordersql="order by arc.senddate desc";
+			}
+		}else{
+			if($orderby=="senddate")
+			{
+				$ordersql=" order by arc.senddate desc";
+			}
+			else if($orderby=="pubdate")
+			{
+				$ordersql=" order by arc.pubdate desc";
+			}
+			else if($orderby=="id")
+			{
+				$ordersql="  order by arc.id desc";
+			}
+			else
+			{
+				$ordersql=" order by arc.sortrank desc";
+			}
 		}
 
 		//搜索
 		$query = "Select arc.*,act.typedir,act.typename,act.isdefault,act.defaultname,act.namerule,
 		act.namerule2,act.ispart,act.moresite,act.siteurl,act.sitepath
-		from `#@__archives` arc left join `#@__arctype` act on arc.typeid=act.id
+		from `{$this->AddTable}` arc left join `#@__arctype` act on arc.typeid=act.id
 		where {$this->AddSql} $ordersql limit $limitstart,$row";
 		$this->dsql->SetQuery($query);
 		$this->dsql->Execute("al");
@@ -525,6 +517,14 @@ class SearchView
 				}
 				if($row = $this->dsql->GetArray("al"))
 				{
+					if($this->ChannelType< 0 || $this->ChannelTypeid< 0) {
+							$row["id"]=$row["aid"];
+							$row["ismake"]=empty($row["ismake"])? "" : $row["ismake"];
+							$row["filename"]=empty($row["filename"])? "" : $row["filename"];
+							$row["money"]=empty($row["money"])? "" : $row["money"];
+							$row["description"]=empty($row["description "])? "" : $row["description"];
+							$row["pubdate"]=empty($row["pubdate  "])? $row["senddate"] : $row["pubdate"];
+					}
 					//处理一些特殊字段
 					$row["arcurl"] = GetFileUrl($row["id"],$row["typeid"],$row["senddate"],$row["title"],
 					$row["ismake"],$row["arcrank"],$row["namerule"],$row["typedir"],$row["money"],$row['filename'],$row["moresite"],$row["siteurl"],$row["sitepath"]);
@@ -600,6 +600,7 @@ class SearchView
 	//获取动态的分页列表
 	function GetPageListDM($list_len)
 	{
+		global $oldkeyword;
 		$prepage="";
 		$nextpage="";
 		$prepagenum = $this->PageNo-1;
@@ -618,6 +619,8 @@ class SearchView
 			return "共0页/".$this->TotalResult."条记录";
 		}
 		$purl = $this->GetCurUrl();
+		
+		$oldkeyword = (empty($oldkeyword) ? $this->Keyword : $oldkeyword);
 
 		//当结果超过限制时，重设结果页数
 		if($this->TotalResult > $this->SearchMaxRc)
@@ -625,11 +628,16 @@ class SearchView
 			$totalpage = ceil($this->SearchMaxRc/$this->PageSize);
 		}
 		$infos = "<td>共找到<b>".$this->TotalResult."</b>条记录/最大显示<b>{$totalpage}</b>页 </td>\r\n";
-		$geturl = "keyword=".urlencode($this->Keyword)."&searchtype=".$this->SearchType;
+		$geturl = "keyword=".urlencode($oldkeyword)."&searchtype=".$this->SearchType;
+		$hidenform = "<input type='hidden' name='keyword' value='".rawurldecode($oldkeyword)."'>\r\n";
 		$geturl .= "&channeltype=".$this->ChannelType."&orderby=".$this->OrderBy;
+		$hidenform .= "<input type='hidden' name='channeltype' value='".$this->ChannelType."'>\r\n";
+		$hidenform .= "<input type='hidden' name='orderby' value='".$this->OrderBy."'>\r\n";
 		$geturl .= "&kwtype=".$this->KType."&pagesize=".$this->PageSize;
+		$hidenform .= "<input type='hidden' name='kwtype' value='".$this->KType."'>\r\n";
+		$hidenform .= "<input type='hidden' name='pagesize' value='".$this->PageSize."'>\r\n";
 		$geturl .= "&typeid=".$this->TypeID."&TotalResult=".$this->TotalResult."&";
-		$hidenform = "<input type='hidden' name='typeid' value='".$this->TypeID."'>\r\n";
+		$hidenform .= "<input type='hidden' name='typeid' value='".$this->TypeID."'>\r\n";
 		$hidenform .= "<input type='hidden' name='TotalResult' value='".$this->TotalResult."'>\r\n";
 		$purl .= "?".$geturl;
 
@@ -696,7 +704,7 @@ class SearchView
 		if($totalpage>$total_list)
 		{
 			$plist.="<td width='38'><input type='text' name='PageNo' style='width:28px;height:14px' value='".$this->PageNo."' /></td>\r\n";
-			$plist.="<td width='30'><input type='submit' name='plistgo' value='GO' style='width:24px;height:22px;font-size:9pt' /></td>\r\n";
+			$plist.="<td width='30'><input type='submit' name='plistgo' value='GO' style='width:30px;height:22px;font-size:9pt' /></td>\r\n";
 		}
 		$plist .= "</form>\r\n</tr>\r\n</table>\r\n";
 		return $plist;

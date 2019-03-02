@@ -14,11 +14,13 @@ if($cfg_mb_album=='N')
 	exit();
 }
 require_once(DEDEINC."/dedetag.class.php");
+require_once(DEDEINC."/userlogin.class.php");
 require_once(DEDEINC."/customfields.func.php");
 require_once(DEDEMEMBER."/inc/inc_catalog_options.php");
 require_once(DEDEMEMBER."/inc/inc_archives_functions.php");
 $channelid = isset($channelid) && is_numeric($channelid) ? $channelid : 2;
 $typeid = isset($typeid) && is_numeric($typeid) ? $typeid : 0;
+$menutype = 'content';
 if(empty($formhtml))
 {
 	$formhtml = 0;
@@ -50,7 +52,7 @@ if(empty($dopost))
 		exit();
 	}
 	include(DEDEMEMBER."/templets/album_add.htm");
-
+	exit();
 }
 
 /*------------------------------
@@ -58,6 +60,16 @@ function _SaveArticle(){  }
 ------------------------------*/
 else if($dopost=='save')
 {
+	$svali = GetCkVdValue();
+	if(preg_match("/1/",$safe_gdopen)){
+		if(strtolower($vdcode)!=$svali || $svali=='')
+		{
+			ResetVdValue();
+			ShowMsg('验证码错误！', '-1');
+			exit();
+		}
+		
+	}
 	$maxwidth = isset($maxwidth) && is_numeric($maxwidth) ? $maxwidth : 800;
 	$pagepicnum = isset($pagepicnum) && is_numeric($pagepicnum) ? $pagepicnum : 12;
 	$ddmaxwidth = isset($ddmaxwidth) && is_numeric($ddmaxwidth) ? $ddmaxwidth : 200;
@@ -156,6 +168,10 @@ else if($dopost=='save')
 				if($v=='')
 				{
 					continue;
+				}else if($v == 'templet')
+				{
+					ShowMsg("你保存的字段有误,请检查！","-1");
+					exit();	
 				}
 				$vs = explode(',',$v);
 				if(!isset(${$vs[0]}))
@@ -185,9 +201,9 @@ else if($dopost=='save')
 
 	//保存到主表
 	$inQuery = "INSERT INTO `#@__archives`(id,typeid,sortrank,flag,ismake,channel,arcrank,click,money,title,shorttitle,
-color,writer,source,litpic,pubdate,senddate,mid,description,keywords)
+color,writer,source,litpic,pubdate,senddate,mid,description,keywords,mtype)
 VALUES ('$arcID','$typeid','$sortrank','$flag','$ismake','$channelid','$arcrank','0','$money','$title','$shorttitle',
-'$color','$writer','$source','$litpic','$pubdate','$senddate','$mid','$description','$keywords'); ";
+'$color','$writer','$source','$litpic','$pubdate','$senddate','$mid','$description','$keywords','$mtypesid'); ";
 	if(!$dsql->ExecuteNoneQuery($inQuery))
 	{
 		$gerr = $dsql->GetError();
@@ -231,7 +247,30 @@ VALUES ('$arcID','$typeid','$sortrank','$flag','$ismake','$channelid','$arcrank'
 	{
 		$artUrl = $cfg_phpurl."/view.php?aid=$arcID";
 	}
+	
+	#api{{
+	if(defined('UC_API') && @include_once DEDEROOT.'/api/uc.func.php')
+	{
+		//推送事件
+		$feed['icon'] = 'thread';
+		$feed['title_template'] = '<b>{username} 在网站发布了一篇图集</b>';
+		$feed['title_data'] = array('username' => $cfg_ml->M_UserName);
+		$feed['body_template'] = '<b>{subject}</b><br>{message}';
+		$url = !strstr($artUrl,'http://') ? ($cfg_basehost.$artUrl) : $artUrl;
+		$feed['body_data'] = array('subject' => "<a href=\"".$url."\">$title</a>", 'message' => cn_substr(strip_tags(preg_replace("/\[.+?\]/is", '', $description)), 150));		
+		$feed['images'][] = array('url' => $cfg_basehost.'/images/scores.gif', 'link'=> $cfg_basehost);
+		uc_feed_note($cfg_ml->M_LoginID,$feed);
 
+		$row = $dsql->GetOne("SELECT `scores`,`userid` FROM `#@__member` WHERE `mid`='".$cfg_ml->M_ID."' AND `matt`<>10");
+		uc_credit_note($row['userid'], $cfg_sendarc_scores);
+	}
+	#/aip}}
+
+    //会员动态记录
+	$cfg_ml->RecordFeeds('add',$title,$description,$arcID);
+	
+	ClearMyAddon($arcID, $title);
+	
 	//返回成功信息
 	$msg = "
 　　请选择你的后续操作：

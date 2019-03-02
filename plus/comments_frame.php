@@ -10,7 +10,7 @@ require_once(dirname(__FILE__)."/../include/common.inc.php");
 require_once(DEDEINC."/datalistcp.class.php");
 
 $action = isset($action) ? trim($action) : '';
-$id = (isset($id) && is_numeric($id)) ? $id : 0;
+$id = empty($id)? 0 : intval(preg_replace("/[^\d]/",'', $id));
 
 if($id < 1)
 {
@@ -34,6 +34,6 @@ ORDER BY fb.id DESC";
 $dlist = new DataListCP();
 $dlist->pageSize = 6;
 $dlist->SetParameter('id', $id);
-$dlist->SetTemplet($cfg_basedir.$cfg_templets_dir."/plus/comments_frame.htm");
+$dlist->SetTemplet(DEDETEMPLATE.'/plus/comments_frame.htm');
 $dlist->SetSource($sql);
 $dlist->display();

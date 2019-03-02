@@ -76,56 +76,84 @@ function GetFormItem($ctag,$admintype='admin')
 			$v = trim($v);
 			if($v!='')
 			{
-				$myformItem .= "<input type='checkbox' name='{$fieldname}[]' class='np' value='$v'>$v\r\n";
+				if($admintype == 'membermodel')
+				{
+					$myformItem .= "<label><input type='checkbox' name='{$fieldname}[]' class='np' value='$v'>$v</label>\r\n";
+				} else {
+          $myformItem .= "<input type='checkbox' name='{$fieldname}[]' class='np' value='$v'>$v\r\n";
+				}
+				
 			}
 		}
 		$innertext = $myformItem;
 	}
 	else if($fieldType=='htmltext'||$fieldType=='textdata')
 	{
+		$dfvalue = ($ctag->GetAtt('default')!='' ? $ctag->GetAtt('default') : '');
+		$dfvalue = str_replace('{{', '<', $dfvalue);
+		$dfvalue = str_replace('}}', '>', $dfvalue);
 		if($admintype=='admin')
 		{
-			$innertext = GetEditor($fieldname,'',350,'Basic','string');
+			$innertext = GetEditor($fieldname, $dfvalue, 350, 'Basic', 'string');
+		}
+		else if($admintype=='diy')
+		{
+			$innertext = GetEditor($fieldname, $dfvalue, 350, 'Diy', 'string');
 		}
 		else
 		{
-			$innertext = GetEditor($fieldname,'',350,'Member','string');
+			$innertext = GetEditor($fieldname, $dfvalue, 350, 'Member', 'string');
 		}
 	}
 	else if($fieldType=="multitext")
 	{
-		$innertext = "<textarea name='$fieldname' id='$fieldname' style='width:100%;height:80'></textarea>\r\n";
+		$innertext = "<textarea name='$fieldname' id='$fieldname' style='width:90%;height:80'></textarea>\r\n";
 	}
 	else if($fieldType=="datetime")
 	{
 		$nowtime = GetDateTimeMk(time());
-		$innertext = "<input name=\"$fieldname\" value=\"$nowtime\" type=\"text\" id=\"$fieldname\" style=\"width:250px\" />";
+		$innertext = "<input name=\"$fieldname\" value=\"$nowtime\" type=\"text\" id=\"$fieldname\" style=\"width:250px\" class=\"intxt\"  />";
 	}
 	else if($fieldType=='img'||$fieldType=='imgfile')
 	{
-		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:300px' class='text' /> <input name='".$fieldname."_bt' type='button' class='inputbut' value='浏览...' onClick=\"SelectImage('form1.$fieldname','big')\" />\r\n";
+		if($admintype=='diy') {
+			$innertext = "<input type='file' name='$fieldname' id='$fieldname' style='width:300px;height:22px;line-height:22px' />\r\n";
+		}
+		else {
+			$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:300px' class='text' /> <input name='".$fieldname."_bt' type='button' class='inputbut' value='浏览...' onClick=\"SelectImage('form1.$fieldname','big')\" />\r\n";
+		}
 	}
 	else if($fieldType=='media')
 	{
-		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:300px' class='text' /> <input name='".$fieldname."_bt' type='button' class='inputbut' value='浏览...' onClick=\"SelectMedia('form1.$fieldname')\" />\r\n";
+		if($admintype=='diy')
+		{
+			$innertext = "<input type='hidden' name='$fieldname' id='$fieldname' value='' />不支持的类型\r\n";
+		}
+		else
+		{
+			$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:300px' class='text' /> <input name='".$fieldname."_bt' type='button' class='inputbut' value='浏览...' onClick=\"SelectMedia('form1.$fieldname')\" />\r\n";
+		}
 	}
 	else if($fieldType=='addon')
 	{
-		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:300px' class='text' /> <input name='".$fieldname."_bt' type='button' class='inputbut' value='浏览...' onClick=\"SelectSoft('form1.$fieldname')\" />\r\n";
-	}
-	else if($fieldType=='media')
-	{
-		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:300px' class='text' /> <input name='".$fieldname."_bt' type='button' class='inputbut' value='浏览...' onClick=\"SelectMedia('form1.$fieldname')\" />\r\n";
+		if($admintype=='diy')
+		{
+			$innertext = "<input type='file' name='$fieldname' id='$fieldname' style='width:300px;height:22px;line-height:22px' />\r\n";
+		}
+		else
+		{
+			$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:300px' class='text' /> <input name='".$fieldname."_bt' type='button' class='inputbut' value='浏览...' onClick=\"SelectSoft('form1.$fieldname')\" />\r\n";
+		}
 	}
 	else if($fieldType=='int'||$fieldType=='float')
 	{
-		$dfvalue = ($ctag->GetAtt('default')!='' ? $ctag->GetAtt('default') : '');
-		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:100px'  class='text' value='$dfvalue' /> (填写数值)\r\n";
+		$dfvalue = ($ctag->GetAtt('default')!='' ? $ctag->GetAtt('default') : '0');
+		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:100px'  class='intxt' value='$dfvalue' /> (填写数值)\r\n";
 	}
 	else
 	{
 		$dfvalue = ($ctag->GetAtt('default')!='' ? $ctag->GetAtt('default') : '');
-		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:250px'  class='text' value='$dfvalue' />\r\n";
+		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:250px'  class='intxt' value='$dfvalue' />\r\n";
 	}
 	$formitem = str_replace("~name~",$ctag->GetAtt('itemname'),$formitem);
 	$formitem = str_replace("~form~",$innertext,$formitem);
@@ -133,9 +161,9 @@ function GetFormItem($ctag,$admintype='admin')
 }
 
 //处理不同类型的数据
-function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='admin')
+function GetFieldValue($dvalue, $dtype, $aid=0, $job='add', $addvar='', $admintype='admin', $fieldname='')
 {
-	global $cfg_basedir,$cfg_cmspath,$adminid,$cfg_ml;
+	global $cfg_basedir, $cfg_cmspath, $adminid, $cfg_ml, $cfg_cookie_encode;
 	if(!empty($adminid))
 	{
 		$adminid = $adminid;
@@ -183,7 +211,7 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 	}
 	else if($dtype=="htmltext")
 	{
-		if($admintype=='member')
+		if($admintype=='member' || $admintype=='diy')
 		{
 			$dvalue = HtmlReplace($dvalue,-1);
 		}
@@ -191,7 +219,7 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 	}
 	else if($dtype=="multitext")
 	{
-		if($admintype=='member')
+		if($admintype=='member' || $admintype=='diy')
 		{
 			$dvalue = HtmlReplace($dvalue,0);
 		}
@@ -199,23 +227,6 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 	}
 	else if($dtype=="textdata")
 	{
-		if($job=='edit')
-		{
-			$addvarDirs = explode('/',$addvar);
-			$addvarDir = ereg_replace("/".$addvarDirs[count($addvarDirs)-1]."$","",$addvar);
-			$mdir = $cfg_basedir.$addvarDir;
-			if(!is_dir($mdir))
-			{
-				MkdirAll($mdir);
-			}
-			$fp = fopen($cfg_basedir.$addvar,"w");
-			fwrite($fp,stripslashes($dvalue));
-			fclose($fp);
-			CloseFtp();
-			return $addvar;
-		}
-		else
-		{
 			$ipath = $cfg_cmspath."/data/textdata";
 			$tpath = ceil($aid/5000);
 			if(!is_dir($cfg_basedir.$ipath))
@@ -230,7 +241,7 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 			$filename = "{$ipath}/{$aid}-".cn_substr(md5($cfg_cookie_encode),0,16).".txt";
 
 			//会员投稿内容安全处理
-			if($admintype=='member')
+			if($admintype=='member' || $admintype=='diy')
 			{
 				$dvalue = HtmlReplace($dvalue,-1);
 			}
@@ -239,14 +250,18 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 			fclose($fp);
 			CloseFtp();
 			return $filename;
-		}
 	}
 	else if($dtype=='img' || $dtype=='imgfile')
 	{
-		$iurl = stripslashes($dvalue);
-		if(trim($iurl)=="")
+		if($admintype=='diy')
 		{
-			return "";
+			$iurl = MemberUploads($fieldname,'', 0, 'image', '', -1, -1, false);
+			return $iurl;
+		}
+		$iurl = stripslashes($dvalue);
+		if(trim($iurl)=='')
+		{
+			return '';
 		}
 		$iurl = trim(str_replace($GLOBALS['cfg_basehost'],"",$iurl));
 		$imgurl = "{dede:img text='' width='' height=''} ".$iurl." {/dede:img}";
@@ -259,7 +274,7 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 				$reimgs = GetRemoteImage($iurl,$adminid);
 				if(is_array($reimgs))
 				{
-					if($dtype=="imgfile")
+					if($dtype=='imgfile')
 					{
 						$imgurl = $reimgs[1];
 					}
@@ -271,7 +286,7 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 			}
 			else
 			{
-				if($dtype=="imgfile")
+				if($dtype=='imgfile')
 				{
 					$imgurl = $iurl;
 				}
@@ -281,7 +296,7 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 				}
 			}
 		}
-		else if($iurl!="")
+		else if($iurl != '')
 		{
 			//站内图片
 			$imgfile = $cfg_basedir.$iurl;
@@ -301,9 +316,14 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 		}
 		return addslashes($imgurl);
 	}
+	else if($dtype=='addon' && $admintype=='diy') 
+	{
+		$dvalue = MemberUploads($fieldname,'', 0, 'addon', '', -1, -1, false);
+		return $dvalue;
+	}
 	else
 	{
-		if($admintype=='member')
+		if($admintype=='member' || $admintype=='diy')
 		{
 			$dvalue = HtmlReplace($dvalue,1);
 		}
@@ -312,7 +332,7 @@ function GetFieldValue($dvalue,$dtype,$aid=0,$job='add',$addvar='',$admintype='a
 }
 
 //获得带值的表单(编辑时用)
-function GetFormItemValue($ctag,$fvalue,$admintype='admin')
+function GetFormItemValue($ctag, $fvalue, $admintype='admin', $fieldname='')
 {
 	global $cfg_basedir,$dsql;
 	$fieldname = $ctag->GetName();
@@ -444,12 +464,12 @@ function GetFormItemValue($ctag,$fvalue,$admintype='admin')
 	}
 	else if($ftype=="multitext")
 	{
-		$innertext = "<textarea name='$fieldname' id='$fieldname' style='width:100%;height:80px'>$fvalue</textarea>\r\n";
+		$innertext = "<textarea name='$fieldname' id='$fieldname' style='width:90%;height:80px'>$fvalue</textarea>\r\n";
 	}
 	else if($ftype=="datetime")
 	{
 		$nowtime = GetDateTimeMk($fvalue);
-		$innertext = "<input name=\"$fieldname\" value=\"$nowtime\" type=\"text\" id=\"$fieldname\" style=\"width:250px\" />";
+		$innertext = "<input name=\"$fieldname\" value=\"$nowtime\" type=\"text\" id=\"$fieldname\" style=\"width:250px\" class=\"intxt\" />";
 	}
 	else if($ftype=="img")
 	{
@@ -481,11 +501,11 @@ function GetFormItemValue($ctag,$fvalue,$admintype='admin')
 	}
 	else if($ftype=="int"||$ftype=="float")
 	{
-		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:100px'  class='text' value='$fvalue' /> (填写数值)\r\n";
+		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:100px'  class='intxt' value='$fvalue' /> (填写数值)\r\n";
 	}
 	else
 	{
-		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:250px'  class='text' value='$fvalue' />\r\n";
+		$innertext = "<input type='text' name='$fieldname' id='$fieldname' style='width:250px'  class='intxt' value='$fvalue' />\r\n";
 	}
 	$formitem = str_replace('~name~',$ctag->GetAtt('itemname'),$formitem);
 	$formitem = str_replace('~form~',$innertext,$formitem);

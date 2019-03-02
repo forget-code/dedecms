@@ -3,7 +3,7 @@ require_once(dirname(__FILE__)."/config.php");
 setcookie("ENV_GOBACK_URL",$dedeNowurl,time()+3600,"/");
 if(empty($pagesize))
 {
-	$pagesize = 18;
+	$pagesize = 30;
 }
 if(empty($pageno))
 {
@@ -49,6 +49,17 @@ else if($dopost=='del')
 	exit();
 }
 
+//批量删除字段
+else if($dopost=='delall')
+{
+	foreach($aids as $aid)
+	{
+		$dsql->ExecuteNoneQuery("Delete From `#@__search_keywords` where aid='$aid';");
+	}
+	ShowMsg("删除成功！",$ENV_GOBACK_URL);
+	exit();
+}
+
 //第一次进入这个页面
 if($dopost=='')
 {
@@ -62,8 +73,11 @@ function GetKeywordList($dsql,$pageno,$pagesize,$orderby='aid')
 {
 	global $cfg_phpurl;
 	$start = ($pageno-1) * $pagesize;
-	$printhead ="<table width='98%' border='0' cellpadding='1' cellspacing='1' bgcolor='#D1DDAA' style='margin-bottom:3px'>
+	$printhead ="<form name='form3' action=\"search_keywords_main.php\" method=\"post\">
+    <input name=\"dopost\" type=\"hidden\" value=\"\">
+	<table width='98%' border='0' cellpadding='1' cellspacing='1' bgcolor='#D1DDAA' style='margin-bottom:3px'>
     <tr align='center' bgcolor='#E9F4D5' height='24'>
+	  <td width='5%'>选择</td>
       <td width='6%' height='23'><a href='#' onclick=\"ReloadPage('aid')\"><u>ID</u></a></td>
       <td width='20%'>关键字</td>
       <td width='35%'>分词结果</td>
@@ -71,14 +85,19 @@ function GetKeywordList($dsql,$pageno,$pagesize,$orderby='aid')
       <td width='6%'><a href='#' onclick=\"ReloadPage('result')\"><u>结果</u></a></td>
       <td width='16%'><a href='#' onclick=\"ReloadPage('lasttime')\"><u>最后搜索时间</u></a></td>
       <td>管理</td>
-    </tr>\r\n";
+    </tr>\r\n
+	";
 	echo $printhead;
-	$dsql->SetQuery("Select * From #@__search_keywords order by $orderby desc limit $start,$pagesize ");
+	if($orderby=='result') $orderby = $orderby." asc";
+	else $orderby = $orderby." desc";
+	$dsql->SetQuery("Select * From #@__search_keywords order by $orderby limit $start,$pagesize ");
 	$dsql->Execute();
 	while($row = $dsql->GetArray())
 	{
 		$line = "
+	
       <tr align='center' bgcolor='#FFFFFF' onMouseMove=\"javascript:this.bgColor='#FCFEDA';\" onMouseOut=\"javascript:this.bgColor='#FFFFFF';\">
+	  <td height='24'><input name=\"aids[]\" type=\"checkbox\" class=\"np\" value=\"{$row['aid']}\" /></td>
       <td height='24'>{$row['aid']}</td>
       <td><input name='keyword' type='text' id='keyword{$row['aid']}' value='{$row['keyword']}' class='ininput'></td>
       <td><input name='spwords' type='text' id='spwords{$row['aid']}' value='{$row['spwords']}' class='ininput'></td>
@@ -89,10 +108,18 @@ function GetKeywordList($dsql,$pageno,$pagesize,$orderby='aid')
       <a href='#' onclick='UpdateNote({$row['aid']})'>更新</a> |
       <a href='#' onclick='DelNote({$row['aid']})'>删除</a>
       </td>
-    </tr>";
+    </tr>
+	";
 		echo $line;
 	}
-	echo "</table>\r\n";
+	echo "  <tr align='left' bgcolor='#E9F4D5' height='24'>
+			<td colspan='8'>
+	        <a href='javascript:selAll()' class='coolbg np'>反选</a>
+	        <a href='javascript:noselAll()' class='coolbg np'>取消</a>
+            <a href='javascript:delall()' class='coolbg np'>删除</a>
+		   </td>
+		   </tr>\r\n";
+	echo "</table></form>\r\n";
 }
 
 ?>

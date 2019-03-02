@@ -8,6 +8,8 @@ $tid = (isset($tid) && is_numeric($tid) ? $tid : 0);
 $channelid = (isset($channelid) && is_numeric($channelid) ? $channelid : 0);
 
 if($tid==0 && $channelid==0) die(" Request Error! ");
+if(isset($TotalResult)) $TotalResult = intval(preg_replace("/[^\d]/",'', $TotalResult));
+
 
 //如果指定了内容模型ID但没有指定栏目ID，那么自动获得为这个内容模型的第一个顶级栏目作为频道默认栏目
 if(!empty($channelid) && empty($tid))
@@ -37,6 +39,25 @@ else
 {
 	include(DEDEINC."/arc.listview.class.php");
 	$lv = new ListView($tid);
+	//对设置了会员级别的栏目进行处理
+	if(isset($lv->Fields['corank']) && $lv->Fields['corank'] > 0)
+	{
+		require_once(DEDEINC.'/memberlogin.class.php');
+		$cfg_ml = new MemberLogin();
+		if( $cfg_ml->M_Rank < $lv->Fields['corank'] )
+		{
+				$dsql->Execute('me' , "Select * From `#@__arcrank` ");
+				while($row = $dsql->GetObject('me'))
+				{
+					$memberTypes[$row->rank] = $row->membername;
+				}
+				$memberTypes[0] = "游客或没权限会员";
+				$msgtitle = "你没有权限浏览栏目：{$lv->Fields['typename']} ！";
+				$moremsg = "这个栏目需要 <font color='red'>".$memberTypes[$lv->Fields['corank']]."</font> 才能访问，你目前是：<font color='red'>".$memberTypes[$cfg_ml->M_Rank]."</font> ！";
+				include_once(DEDETEMPLATE.'/plus/view_msg_catalog.htm');
+				exit();
+		}
+	}
 }
 
 if($lv->IsError)

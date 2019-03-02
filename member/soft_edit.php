@@ -7,6 +7,7 @@ require_once(DEDEMEMBER."/inc/inc_catalog_options.php");
 require_once(DEDEMEMBER."/inc/inc_archives_functions.php");
 $channelid = isset($channelid) && is_numeric($channelid) ? $channelid : 3;
 $aid = isset($aid) && is_numeric($aid) ? $aid : 0;
+$menutype = 'content';
 
 /*-------------
 function _ShowForm(){  }
@@ -17,6 +18,7 @@ if(empty($dopost))
 	$arcQuery = "Select
     #@__channeltype.typename as channelname,
     #@__arcrank.membername as rankname,
+    #@__channeltype.arcsta,
     #@__archives.*
     From #@__archives
     left join #@__channeltype on #@__channeltype.id=#@__archives.channel
@@ -28,6 +30,16 @@ if(empty($dopost))
 	{
 		ShowMsg("读取档案基本信息出错!","-1");
 		exit();
+	}
+	else if($row['arcrank']>=0)
+	{
+		$dtime = time();
+		$maxtime = $cfg_mb_editday * 24 *3600;
+		if($dtime - $row['senddate'] > $maxtime)
+		{
+			ShowMsg("这篇文档已经锁定，你不能再修改它！","-1");
+			exit();
+		}
 	}
 	$query = "Select * From `#@__channeltype` where id='".$row['channel']."'";
 	$cInfos = $dsql->GetOne($query);
@@ -86,6 +98,10 @@ else if($dopost=='save')
 				if($v=='')
 				{
 					continue;
+				}else if($v == 'templet')
+				{
+					ShowMsg("你保存的字段有误,请检查！","-1");
+					exit();	
 				}
 				$vs = explode(',',$v);
 				if(!isset(${$vs[0]}))
@@ -180,6 +196,8 @@ else if($dopost=='save')
 	$urls = addslashes($urls);
 
 	//更新附加表
+	$needmoney = @intval($needmoney);
+	if($needmoney > 100) $needmoney = 100;
 	$cts = $dsql->GetOne("Select addtable From `#@__channeltype` where id='$channelid' ");
 	$addtable = trim($cts['addtable']);
 	if($addtable!='')
@@ -196,10 +214,10 @@ else if($dopost=='save')
 			officialDemo ='$officialDemo',
 			softsize ='$softsize',
 			softlinks ='$urls',
-			 userip='$userip',
+			userip='$userip',
+			needmoney='$needmoney',
 			introduce='$body'{$inadd_f}
-			where aid='$aid';
-			";
+			where aid='$aid'; ";
 		if(!$dsql->ExecuteNoneQuery($inQuery))
 		{
 			ShowMsg("更新数据库附加表 addonsoft 时出错，请检查原因！","-1");

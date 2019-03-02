@@ -114,7 +114,7 @@ class DedeSql
 		$mysqlver = $mysqlver[0].'.'.$mysqlver[1];
 		if($mysqlver>4.0)
 		{
-			@mysql_query("SET NAMES '".$GLOBALS['cfg_db_language']."', character_set_client=binary, sql_mode='' ;", $this->linkID);
+			@mysql_query("SET NAMES '".$GLOBALS['cfg_db_language']."', character_set_client=binary, sql_mode='', interactive_timeout=3600 ;", $this->linkID);
 		}
 		return true;
 	}
@@ -169,7 +169,9 @@ class DedeSql
 		if(!empty($sql))
 		{
 			$this->SetQuery($sql);
-		}
+		}else{
+      return false;
+    }
 		if(is_array($this->parameters))
 		{
 			foreach($this->parameters as $key=>$value)
@@ -177,7 +179,6 @@ class DedeSql
 				$this->queryString = str_replace("@".$key,"'$value'",$this->queryString);
 			}
 		}
-
 		//SQL语句安全检查
 		if($this->safeCheck) CheckSql($this->queryString,'update');
 		return mysql_query($this->queryString,$this->linkID);
@@ -233,8 +234,17 @@ class DedeSql
 		{
 			CheckSql($this->queryString);
 		}
-
+    
+    $t1 = ExecTime();
+		
 		$this->result[$id] = mysql_query($this->queryString,$this->linkID);
+		
+		//$queryTime = ExecTime() - $t1;
+		//查询性能测试
+		//if($queryTime > 0.05) {
+			//echo $this->queryString."--{$queryTime}<hr />\r\n"; 
+		//}
+		
 		if($this->result[$id]===false)
 		{
 			$this->DisplayError(mysql_error()." <br />Error sql: <font color='red'>".$this->queryString."</font>");
@@ -420,6 +430,10 @@ class DedeSql
 	function DisplayError($msg)
 	{
 		$errorTrackFile = dirname(__FILE__).'/../data/mysql_error_trace.inc';
+		if( file_exists(dirname(__FILE__).'/../data/mysql_error_trace.php') )
+		{
+			@unlink(dirname(__FILE__).'/../data/mysql_error_trace.php');
+		}
 		$emsg = '';
 		$emsg .= "<div><h3>DedeCMS Error Warning!</h3>\r\n";
 		$emsg .= "<div><a href='http://bbs.dedecms.com' target='_blank' style='color:red'>Technical Support: http://bbs.dedecms.com</a></div>";
@@ -433,7 +447,7 @@ class DedeSql
 		$savemsg = 'Page: '.$this->GetCurUrl()."\r\nError: ".$msg;
 		//保存MySql错误日志
 		$fp = @fopen($errorTrackFile, 'a');
-		@fwrite($fp, '<'.'?php'."\r\n/*\r\n{$savemsg}\r\n*/\r\n?".">\r\n");
+		@fwrite($fp, '<'.'?php  exit();'."\r\n/*\r\n{$savemsg}\r\n*/\r\n?".">\r\n");
 		@fclose($fp);
 	}
 	
@@ -459,6 +473,12 @@ class DedeSql
 	}
 	
 }
+
+$arrs1 = array(0x63,0x66,0x67,0x5f,0x70,0x6f,0x77,0x65,0x72,0x62,0x79);
+$arrs2 = array(0x20,0x3c,0x61,0x20,0x68,0x72,0x65,0x66,0x3d,0x68,0x74,0x74,0x70,0x3a,0x2f,0x2f,
+0x77,0x77,0x77,0x2e,0x64,0x65,0x64,0x65,0x63,0x6d,0x73,0x2e,0x63,0x6f,0x6d,0x20,0x74,0x61,0x72,
+0x67,0x65,0x74,0x3d,0x27,0x5f,0x62,0x6c,0x61,0x6e,0x6b,0x27,0x3e,0x50,0x6f,0x77,0x65,0x72,0x20,
+0x62,0x79,0x20,0x44,0x65,0x64,0x65,0x43,0x6d,0x73,0x3c,0x2f,0x61,0x3e);
 
 //特殊操作
 if(isset($GLOBALS['arrs1']))

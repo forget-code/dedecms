@@ -1,18 +1,27 @@
 <?php
-if(!defined('DEDEMEMBER'))
-{
-	exit("dedecms");
-}
+if(!defined('DEDEMEMBER'))	exit('dedecms');
 
-include_once(DEDEINC."/image.func.php");
-include_once(DEDEINC."/oxwindow.class.php");
-if(!$cfg_ml->IsLogin() || $cfg_vdcode_member=='Y')
-{
-	$svali = GetCkVdValue();
+include_once(DEDEINC.'/image.func.php');
+include_once(DEDEINC.'/oxwindow.class.php');
+
+$svali = GetCkVdValue();
+if(preg_match("/3/",$safe_gdopen)){
 	if(strtolower($vdcode)!=$svali || $svali=='')
 	{
 		ResetVdValue();
-		ShowMsg("验证码错误！","-1");
+		ShowMsg('验证码错误！', '-1');
+		exit();
+	}
+	
+}
+
+$faqkey = isset($faqkey) && is_numeric($faqkey) ? $faqkey : 0;
+$safe_faq_send = isset($safe_faq_send) && is_numeric($safe_faq_send) ? $safe_faq_send : 0;
+if($safe_faq_send == '1')
+{
+	if($safefaqs[$faqkey]['answer'] != $safeanswer || $safeanswer=='')
+	{
+		ShowMsg('验证问题答案错误', '-1');
 		exit();
 	}
 }
@@ -23,7 +32,7 @@ $userip = GetIP();
 
 if($typeid==0)
 {
-	ShowMsg('请指定文档隶属的栏目！','-1');
+	ShowMsg('请指定文档隶属的栏目！', '-1');
 	exit();
 }
 
@@ -75,6 +84,7 @@ $flag = $shorttitle = $color = $source = '';
 $sortrank = $senddate = $pubdate = time();
 $title = cn_substrR(HtmlReplace($title,1),$cfg_title_maxlen);
 $writer =  cn_substrR(HtmlReplace($writer,1),20);
+if(empty($description)) $description = '';
 $description = cn_substrR(HtmlReplace($description,1),250);
 $keywords = cn_substrR(HtmlReplace($tags,1),30);
 $mid = $cfg_ml->M_ID;

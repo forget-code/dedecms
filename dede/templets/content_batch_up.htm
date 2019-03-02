@@ -3,7 +3,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>文档批量管理</title>
 <link href="img/base.css" rel="stylesheet" type="text/css">
-<script src="../member/js/webcalendar.js" type="text/javascript"></script>
+<script src="js/webcalendar.js" type="text/javascript"></script>
 <script language='javascript'>
 	function ShowHideTime()
 	{
@@ -40,7 +40,7 @@
       <td width="791" bgcolor="#FFFFFF"> 
      <?php
        $tl = new TypeLink(0);
-       $typeOptions = $tl->GetOptionArray(0,$cuserLogin->getUserChannel(),0,1);
+       $typeOptions = $tl->GetOptionArray(0,$admin_catalogs,0,1);
        echo "<select name='typeid' style='width:300'>\r\n";
        echo "<option value='0' selected>不限栏目...</option>\r\n";
        echo $typeOptions;

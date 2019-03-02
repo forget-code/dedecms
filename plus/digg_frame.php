@@ -2,18 +2,19 @@
 require_once(dirname(__FILE__)."/../include/common.inc.php");
 
 $action = isset($action) ? trim($action) : '';
-$id = (isset($id) && is_numeric($id)) ? $id : 0;
+$id = empty($id)? 0 : intval(preg_replace("/[^\d]/",'', $id));
+
 $maintable = '#@__archives';
 if($action == 'good')
 {
-	$dsql->ExecuteNoneQuery("Update `$maintable` set scores = scores + {$cfg_caicai_add},goodpost=goodpost+1,lastpost=".time()." where id=$id");
+	$dsql->ExecuteNoneQuery("Update `$maintable` set scores = scores + {$cfg_caicai_add},goodpost=goodpost+1,lastpost=".time()." where id='$id'");
 }
 else if($action=='bad')
 {
-	$dsql->ExecuteNoneQuery("Update `$maintable` set scores = scores - {$cfg_caicai_sub},badpost=badpost+1,lastpost=".time()." where id=$id");
+	$dsql->ExecuteNoneQuery("Update `$maintable` set scores = scores - {$cfg_caicai_sub},badpost=badpost+1,lastpost=".time()." where id='$id'");
 } 
 $digg = '';
-$row = $dsql->GetOne("Select goodpost,badpost,scores From `$maintable` where id=$id ");
+$row = $dsql->GetOne("Select goodpost,badpost,scores From `$maintable` where id='$id' ");
 if($row['goodpost']+$row['badpost'] == 0)
 {
 	$row['goodper'] = $row['badper'] = 0;

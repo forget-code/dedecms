@@ -3,15 +3,21 @@ require_once(dirname(__FILE__)."/config.php");
 CheckPurview('a_Edit,a_AccEdit,a_MyEdit');
 require_once(DEDEINC."/customfields.func.php");
 require_once(DEDEADMIN."/inc/inc_archives_functions.php");
+if(file_exists(DEDEDATA.'/template.rand.php'))
+{
+	require_once(DEDEDATA.'/template.rand.php');
+}
 if(empty($dopost))
 {
 	$dopost = '';
 }
+
 $aid = isset($aid) && is_numeric($aid) ? $aid : 0;
 if($dopost!='save')
 {
 	require_once(DEDEADMIN."/inc/inc_catalog_options.php");
 	require_once(DEDEINC."/dedetag.class.php");
+	ClearMyAddon();
 
 	//读取归档信息
 	$query = "Select ch.typename as channelname,ar.membername as rankname,arc.*
@@ -59,7 +65,7 @@ else if($dopost=='save')
 	if(!isset($remote)) $remote = 0;
 	if(!isset($dellink)) $dellink = 0;
 	if(!isset($autolitpic)) $autolitpic = 0;
-
+	
 	if(empty($typeid))
 	{
 		ShowMsg("请指定文档的栏目！","-1");
@@ -98,8 +104,10 @@ else if($dopost=='save')
 	$writer =  cn_substrR($writer,20);
 	$source = cn_substrR($source,30);
 	$description = cn_substrR($description,250);
-	$keywords = trim(cn_substrR($keywords,30));
+	$keywords = trim(cn_substrR($keywords,60));
 	$filename = trim(cn_substrR($filename,40));
+	$isremote  = (empty($isremote)? 0  : $isremote);
+	$serviterm=empty($serviterm)? "" : $serviterm;
 	if(!TestPurview('a_Check,a_AccCheck,a_MyCheck'))
 	{
 		$arcrank = -1;
@@ -159,12 +167,15 @@ else if($dopost=='save')
 		$flag = ($flag=='' ? 'j' : $flag.',j');
 	}
 
+	//跳转网址的文档强制为动态
+	if(ereg('j', $flag)) $ismake = -1;
 	//更新数据库的SQL语句
 	$query = "update #@__archives set
     typeid='$typeid',
     typeid2='$typeid2',
     sortrank='$sortrank',
     flag='$flag',
+    click='$click',
     ismake='$ismake',
     arcrank='$arcrank',
     money='$money',
@@ -178,7 +189,9 @@ else if($dopost=='save')
     description='$description',
     keywords='$keywords',
     shorttitle='$shorttitle',
-    filename='$filename'
+    filename='$filename',
+    dutyadmin='$adminid',
+    weight='$weight'
     where id='$id'; ";
 
 	if(!$dsql->ExecuteNoneQuery($query))
@@ -186,12 +199,14 @@ else if($dopost=='save')
 		ShowMsg('更新数据库archives表时出错，请检查',-1);
 		exit();
 	}
+	
 	$cts = $dsql->GetOne("Select addtable From `#@__channeltype` where id='$channelid' ");
 	$addtable = trim($cts['addtable']);
 	if($addtable!='')
 	{
 		$useip = GetIP();
-		$iquery = "update `$addtable` set typeid='$typeid',body='$body'{$inadd_f},redirecturl='$redirecturl',userip='$useip' where aid='$id'";
+		$templet = empty($templet) ? '' : $templet;
+		$iquery = "update `$addtable` set typeid='$typeid',body='$body'{$inadd_f},redirecturl='$redirecturl',templet='$templet',userip='$useip' where aid='$id'";
 		if(!$dsql->ExecuteNoneQuery($iquery))
 		{
 			ShowMsg("更新附加表 `$addtable`  时出错，请检查原因！","javascript:;");
@@ -201,12 +216,23 @@ else if($dopost=='save')
 
 	//生成HTML
 	UpIndexKey($id,$arcrank,$typeid,$sortrank,$tags);
-	$artUrl = MakeArt($id,true,true);
+	if($cfg_remote_site=='Y' && $isremote=="1")
+	{	
+		if($serviterm!=""){
+			list($servurl,$servuser,$servpwd) = explode(',',$serviterm);
+			$config=array( 'hostname' => $servurl, 'username' => $servuser, 'password' => $servpwd,'debug' => 'TRUE');
+		}else{
+			$config=array();
+		}
+		if(!$ftp->connect($config)) exit('Error:None FTP Connection!');
+	}
+	$artUrl = MakeArt($id,true,true,$isremote);
 	if($artUrl=='')
 	{
 		$artUrl = $cfg_phpurl."/view.php?aid=$id";
 	}
-
+	ClearMyAddon($id, $title);
+	
 	//返回成功信息
 	$msg = "
     　　请选择你的后续操作：
@@ -218,7 +244,7 @@ else if($dopost=='save')
     &nbsp;&nbsp;
     <a href='catalog_do.php?cid=$typeid&dopost=listArchives'><u>管理文章</u></a>
     &nbsp;&nbsp;
-    <a href='catalog_main.php'><u>网站栏目管理</u></a>
+    $backurl
     ";
 
 	$wintitle = "成功更改文章！";

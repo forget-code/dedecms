@@ -9,7 +9,8 @@ if(!eregi("^(scores|badpost|goodpost)$",$sort))
 $tid = (isset($tid) ? intval($tid) : 0);
 $t1 = ExecTime();
 $typequery = '';
-
+$menutype = 'mydede';
+$menutype_son = 'cc';
 //获取栏目的子类、交叉分类
 if($tid!=0)
 {
@@ -51,7 +52,7 @@ if($tid!=0)
 }
 $dlist = new Caicai();
 $dlist->pageSize = 15;
-$dlist->maxPageSize = 30;
+$dlist->maxPageSize = 100;
 $maxrc = $dlist->pageSize * $dlist->maxPageSize;
 $query = "Select arc.*,m.userid,m.face,
           tp.typedir,tp.typename,tp.isdefault,tp.defaultname,tp.namerule,tp.namerule2,tp.ispart,tp.moresite,tp.siteurl,tp.sitepath

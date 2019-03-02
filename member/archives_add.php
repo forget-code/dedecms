@@ -1,12 +1,14 @@
 <?php
 require_once(dirname(__FILE__)."/config.php");
 require_once(DEDEINC."/dedetag.class.php");
+require_once(DEDEINC."/userlogin.class.php");
 require_once(DEDEINC."/customfields.func.php");
 require_once(DEDEMEMBER."/inc/inc_catalog_options.php");
 require_once(DEDEMEMBER."/inc/inc_archives_functions.php");
 $channelid = isset($channelid) && is_numeric($channelid) ? $channelid : 1;
 $typeid = isset($typeid) && is_numeric($typeid) ? $typeid : 0;
 $mtypesid = isset($mtypesid) && is_numeric($mtypesid) ? $mtypesid : 0;
+$menutype = 'content';
 
 /*-------------
 function _ShowForm(){  }
@@ -62,6 +64,10 @@ else if($dopost=='save')
 				if($v=='')
 				{
 					continue;
+				}else if($v == 'templet')
+				{
+					ShowMsg("你保存的字段有误,请检查！","-1");
+					exit();	
 				}
 				$vs = explode(',',$v);
 				if(!isset(${$vs[0]}))
@@ -96,9 +102,9 @@ else if($dopost=='save')
 
 	//保存到主表
 	$inQuery = "INSERT INTO `#@__archives`(id,typeid,sortrank,flag,ismake,channel,arcrank,click,money,title,shorttitle,
-color,writer,source,litpic,pubdate,senddate,mid,description,keywords)
+color,writer,source,litpic,pubdate,senddate,mid,description,keywords,mtype)
 VALUES ('$arcID','$typeid','$sortrank','$flag','$ismake','$channelid','$arcrank','0','$money','$title','$shorttitle',
-'$color','$writer','$source','$litpic','$pubdate','$senddate','$mid','$description','$keywords'); ";
+'$color','$writer','$source','$litpic','$pubdate','$senddate','$mid','$description','$keywords','$mtypesid'); ";
 	if(!$dsql->ExecuteNoneQuery($inQuery))
 	{
 		$gerr = $dsql->GetError();
@@ -118,7 +124,7 @@ VALUES ('$arcID','$typeid','$sortrank','$flag','$ismake','$channelid','$arcrank'
 	}
 	else
 	{
-		$inquery = "INSERT INTO `{$addtable}`(aid,typeid,body,userip,redirecturl,templet{$inadd_f}) Values('$arcID','$typeid','$body','$userip','',''{$inadd_v})";
+		$inquery = "INSERT INTO `{$addtable}`(aid,typeid,userip,redirecturl,templet{$inadd_f}) Values('$arcID','$typeid','$userip','',''{$inadd_v})";
 		if(!$dsql->ExecuteNoneQuery($inquery))
 		{
 			$gerr = $dsql->GetError();
@@ -126,11 +132,6 @@ VALUES ('$arcID','$typeid','$sortrank','$flag','$ismake','$channelid','$arcrank'
 			$dsql->ExecuteNoneQuery("Delete From `#@__arctiny` where id='$arcID'");
 			ShowMsg("把数据保存到数据库附加表 `{$addtable}` 时出错<br>error:{$gerr}，请联系管理员！","javascript:;");
 			exit();
-		}
-		if($mtypesid != 0)
-		{
-			$inquery = "INSERT INTO `#@__member_archives`(id, mid, mtypeid) VALUES ('$arcID', '$cfg_ml->M_ID', '$mtypesid');";
-			$dsql->ExecNoneQuery($inquery);
 		}
 	}
 
@@ -146,7 +147,30 @@ VALUES ('$arcID','$typeid','$sortrank','$flag','$ismake','$channelid','$arcrank'
 	{
 		$artUrl = $cfg_phpurl."/view.php?aid=$arcID";
 	}
-
+	
+	#api{{
+	if(defined('UC_API') && @include_once DEDEROOT.'/api/uc.func.php')
+	{
+		//推送事件
+		$feed['icon'] = 'thread';
+		$feed['title_template'] = '<b>{username} 在网站发布了一篇内容</b>';
+		$feed['title_data'] = array('username' => $cfg_ml->M_UserName);
+		$feed['body_template'] = '<b>{subject}</b><br>{message}';
+		$url = !strstr($artUrl,'http://') ? ($cfg_basehost.$artUrl) : $artUrl;		
+		$feed['body_data'] = array('subject' => "<a href=\"".$url."\">$title</a>", 'message' => cn_substr(strip_tags(preg_replace("/\[.+?\]/is", '', $description)), 150));
+		$feed['images'][] = array('url' => $cfg_basehost.'/images/scores.gif', 'link'=> $cfg_basehost);
+		uc_feed_note($cfg_ml->M_LoginID,$feed);
+		//同步积分
+		$row = $dsql->GetOne("SELECT `scores`,`userid` FROM `#@__member` WHERE `mid`='".$cfg_ml->M_ID."'");
+		uc_credit_note($row['userid'],$cfg_sendarc_scores);
+	}
+	#/aip}}
+	
+	//会员动态记录
+	$cfg_ml->RecordFeeds('add',$title,$description,$arcID);
+	
+	ClearMyAddon($arcID, $title);
+	
 	//返回成功信息
 	$msg = "
 	　　请选择你的后续操作：

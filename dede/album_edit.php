@@ -12,6 +12,7 @@ if($dopost!='save')
 {
 	require_once(DEDEADMIN."/inc/inc_catalog_options.php");
 	require_once(DEDEINC."/dedetag.class.php");
+	ClearMyAddon();
 	$aid = intval($aid);
 
 	//读取归档信息
@@ -41,6 +42,7 @@ if($dopost!='save')
 	$irow = $addRow["row"];
 	$icol = $addRow["col"];
 	$isrm = $addRow["isrm"];
+	$body = $addRow["body"];
 	$ddmaxwidth = $addRow["ddmaxwidth"];
 	$pagepicnum = $addRow["pagepicnum"];
 	$tags = GetTags($aid);
@@ -57,6 +59,7 @@ else if($dopost=='save')
 	require_once(DEDEINC.'/oxwindow.class.php');
 
 	$flag = isset($flags) ? join(',',$flags) : '';
+	$notpost = isset($notpost) && $notpost == 1 ? 1: 0;
   if(empty($typeid2)) $typeid2 = 0;
 	if(!isset($autokey)) $autokey = 0;
 	if(!isset($remote)) $remote = 0;
@@ -104,8 +107,10 @@ else if($dopost=='save')
 	$writer =  cn_substrR($writer,20);
 	$source = cn_substrR($source,30);
 	$description = cn_substrR($description,250);
-	$keywords = trim(cn_substrR($keywords,30));
+	$keywords = trim(cn_substrR($keywords,60));
 	$filename = trim(cn_substrR($filename,40));
+	$isremote  = (empty($isremote)? 0  : $isremote);
+	$serviterm=empty($serviterm)? "" : $serviterm;
 	if(!TestPurview('a_Check,a_AccCheck,a_MyCheck'))
 	{
 		$arcrank = -1;
@@ -118,6 +123,9 @@ else if($dopost=='save')
 		$ddisremote = 0;
 	}
 	$litpic = GetDDImage('none',$picname,$ddisremote);
+	
+	//分析body里的内容
+	$body = AnalyseHtmlBody($body,$description,$litpic,$keywords,'htmltext');
 
 	//处理图片文档的自定义属性
 	if($litpic!='' && !ereg('p',$flag))
@@ -129,6 +137,8 @@ else if($dopost=='save')
 		$flag = ($flag=='' ? 'j' : $flag.',j');
 	}
 
+	//跳转网址的文档强制为动态
+	if(ereg('j', $flag)) $ismake = -1;
 	//更新数据库的SQL语句
 	$query = "
     update `#@__archives` set
@@ -136,6 +146,7 @@ else if($dopost=='save')
     typeid2='$typeid2',
     sortrank='$sortrank',
     flag='$flag',
+    click='$click',
     ismake='$ismake',
     arcrank='$arcrank',
     money='$money',
@@ -145,10 +156,12 @@ else if($dopost=='save')
     writer='$writer',
     litpic='$litpic',
     pubdate='$pubdate',
+    notpost='$notpost',
     description='$description',
     keywords='$keywords',
     shorttitle='$shorttitle',
-    filename='$filename'
+    filename='$filename',
+    dutyadmin='$adminid'
     where id='$id'; ";
 
 	if(!$dsql->ExecuteNoneQuery($query))
@@ -160,113 +173,65 @@ else if($dopost=='save')
 	$imgurls = "{dede:pagestyle maxwidth='$maxwidth' pagepicnum='$pagepicnum' ddmaxwidth='$ddmaxwidth' row='$row' col='$col' value='$pagestyle'/}\r\n";
 	$hasone = false;
 
-	//检查已上传或直接上传的图片
+	//----------------------------------------
+	//检查旧的图片是否有更新，并保存
+	//-----------------------------------------
 	for($i=1;$i<=120;$i++)
 	{
-		if(isset(${'imgurl'.$i})||(isset($_FILES['imgfile'.$i]['tmp_name']) && is_uploaded_file($_FILES['imgfile'.$i]['tmp_name'])))
+		if( !isset(${'imgurl'.$i}) ) continue;
+		$info = '';
+		$iinfo = str_replace("'", "`", stripslashes(${'imgmsg'.$i}));
+		$iurl = stripslashes(${'imgurl'.$i});
+		$ddurl = stripslashes(${'imgddurl'.$i});
+		if(preg_match("/swfupload/i", $ddurl)) $ddurl = '';
+		$imgfile = $cfg_basedir.$iurl;
+		$litimgfile = $cfg_basedir.$ddurl;
+		//有上传文件的情况
+		if( isset(${'imgfile'.$i}) && is_uploaded_file(${'imgfile'.$i}) )
 		{
-			$iinfo = str_replace("'","`",stripslashes(${'imgmsg'.$i}));
-			$iurl = stripslashes(${'imgurl'.$i});
-			$ioldurl = @stripslashes(${'imgurlold'.$i});
-			$ioldddimg = @stripslashes(${'oldddimg'.$i});
-
-			//非上传图片
-			if(!is_uploaded_file($_FILES['imgfile'.$i]['tmp_name']))
+			$tmpFile = ${'imgfile'.$i};
+			//检测上传的图片， 如果类型不对，保留原来图片
+			$imginfos = @GetImageSize($tmpFile, $info);
+			if(!is_array($imginfos))
 			{
-				if(trim($iurl)=='')
-				{
-					continue;
-				}
-				$iurl = trim(str_replace($cfg_basehost,'',$iurl));
-				if((eregi("^http://",$iurl) && !eregi($cfg_basehost,$iurl)) && $cfg_isUrlOpen)
-				//远程图片
-				{
-					$reimgs = '';
-					if($cfg_isUrlOpen && $isrm==1)
-					{
-						$reimgs = GetRemoteImage($iurl,$adminid);
-						if(is_array($reimgs))
-						{
-							$litpicname = $pagestyle > 2 ? GetImageMapDD($reimgs[0],$ddmaxwidth) : '';
-							$imgurls .= "{dede:img ddimg='$litpicname' text='$iinfo' width='".$reimgs[1]."' height='".$reimgs[2]."'} ".$reimgs[0]." {/dede:img}\r\n";
-						}else
-						{
-							echo "下载：".$iurl." 失败，可能图片有反采集功能或http头不正确！<br />\r\n";
-						}
-					}else
-					{
-						$imgurls .= "{dede:img text='$iinfo' width='' height=''} ".$iurl." {/dede:img}\r\n";
-					}
-					//站内图片
-				}
-				else if($iurl!='')
-				{
-					$imgfile = $cfg_basedir.$iurl;
-					if(is_file($imgfile))
-					{
-						if($ioldurl!=$iurl)
-						{
-							if(file_exists($cfg_basedir.$ioldddimg))
-							{
-								@unlink($cfg_basedir.$ioldddimg);
-							}
-							$litpicname = $pagestyle > 2 ? GetImageMapDD($iurl,$ddmaxwidth) : '';
-						}
-						else
-						{
-							$litpicname = $ioldddimg;
-						}
-						$info = '';
-						$imginfos = GetImageSize($imgfile,$info);
-						$imgurls .= "{dede:img ddimg='$litpicname' text='$iinfo' width='".$imginfos[0]."' height='".$imginfos[1]."'} $iurl {/dede:img}\r\n";
-					}
-				}
-
+				$imginfos = @GetImageSize($imgfile, $info);
+				$imgurls .= "{dede:img ddimg='$ddurl' text='$iinfo' width='".$imginfos[0]."' height='".$imginfos[1]."'} $iurl {/dede:img}\r\n";
+				continue;
+			}
+			move_uploaded_file($tmpFile, $imgfile);
+			$imginfos = @GetImageSize($imgfile, $info);
+			if($ddurl==$iurl)
+			{
+				$litpicname = $pagestyle > 2 ? GetImageMapDD($iurl, $cfg_ddimg_width) : $iurl;
+				$litimgfile = $cfg_basedir.$litpicname;
 			}
 			else
 			{
-				//直接上传的图片
-				$sparr = Array("image/pjpeg","image/jpeg","image/gif","image/png","image/xpng","image/wbmp");
-				if(!in_array($_FILES['imgfile'.$i]['type'],$sparr))
-				{
-					continue;
-				}
-				$uptime = time();
-				$imgPath = $cfg_image_dir."/".MyDate("ymd",$uptime);
-				MkdirAll($cfg_basedir.$imgPath,$GLOBALS['cfg_dir_purview']);
-				CloseFtp();
-				$filename = $imgPath."/".dd2char($cuserLogin->getUserID().MyDate("His",$uptime).mt_rand(1000,9999))."-{$i}";
-				$fs = explode(".",$_FILES['imgfile'.$i]['name']);
-				$filename = $filename.".".$fs[count($fs)-1];
-				@move_uploaded_file($_FILES['imgfile'.$i]['tmp_name'],$cfg_basedir.$filename);
-
-				//缩图
-				$litpicname = $pagestyle > 2 ? GetImageMapDD($filename,$ddmaxwidth) : '';
-
-				//水印
-				$imgfile = $cfg_basedir.$filename;
-				@WaterImg($imgfile,'up');
-
-				if(is_file($imgfile))
-				{
-					$iurl = $filename;
-					$info = "";
-					$imginfos = GetImageSize($imgfile,$info);
-					$imgurls .= "{dede:img ddimg='$litpicname' text='$iinfo' width='".$imginfos[0]."' height='".$imginfos[1]."'} $iurl {/dede:img}\r\n";
-
-					//把新上传的图片信息保存到媒体文档管理档案中
-					$inquery = "
-                   INSERT INTO #@__uploads(title,url,mediatype,width,height,playtime,filesize,uptime,mid)
-                    VALUES ('$title".$i."','$filename','1','".$imginfos[0]."','".$imginfos[1]."','0','".filesize($imgfile)."','".time()."','$adminid');
-                 ";
-					$dsql->ExecuteNoneQuery($inquery);
-				}
+				if($cfg_ddimg_full=='Y') ImageResizeNew($imgfile, $cfg_ddimg_width, $cfg_ddimg_height, $litimgfile);
+				else ImageResize($imgfile, $cfg_ddimg_width, $cfg_ddimg_height, $litimgfile);
+				$litpicname = $ddurl;
 			}
-		}//含有图片的条件
-	}//循环结束
+			$imgurls .= "{dede:img ddimg='$litpicname' text='$iinfo' width='".$imginfos[0]."' height='".$imginfos[1]."'} $iurl {/dede:img}\r\n";
+		}
+		//没上传图片(只修改msg信息)
+		else
+		{
+			$iinfo = str_replace("'", "`", stripslashes(${'imgmsg'.$i}));
+			$iurl = stripslashes(${'imgurl'.$i});
+			$ddurl = stripslashes(${'imgddurl'.$i});
+			if(preg_match("/swfupload/i", $ddurl))
+			{
+				$ddurl = $pagestyle > 2 ? GetImageMapDD($iurl, $cfg_ddimg_width) : $iurl;
+			}
+			$imginfos = @GetImageSize($imgfile, $info);
+			$imgurls .= "{dede:img ddimg='$ddurl' text='$iinfo' width='".$imginfos[0]."' height='".$imginfos[1]."'} $iurl {/dede:img}\r\n";
+		}
+	}
 
-	//从HTML中获取
-	if($formhtml==1)
+	//----------------------------
+	//从HTML中获取新图片
+	//----------------------------
+	if($formhtml==1 && !empty($imagebody))
 	{
 		$imagebody = stripslashes($imagebody);
 		$imgurls .= GetCurContentAlbum($imagebody,$copysource,$litpicname);
@@ -278,7 +243,7 @@ else if($dopost=='save')
 	}
 	/*---------------------
 	function _getformzip()
-	ZIP中解压
+	从ZIP文件中获取新图片
 	---------------------*/
 	if($formzip==1)
 	{
@@ -310,7 +275,7 @@ else if($dopost=='save')
 				unlink($imgold);
 				if(is_file($imgfile))
 				{
-					$litpicname = $pagestyle > 2 ? GetImageMapDD($iurl,$ddmaxwidth) : '';
+					$litpicname = $pagestyle > 2 ? GetImageMapDD($iurl,$cfg_ddimg_width) : $iurl;
 					$info = '';
 					$imginfos = GetImageSize($imgfile,$info);
 					$imgurls .= "{dede:img ddimg='$litpicname' text='' width='".$imginfos[0]."' height='".$imginfos[1]."'} $iurl {/dede:img}\r\n";
@@ -339,6 +304,24 @@ else if($dopost=='save')
 			$fm->RmDirFiles($tmpzipdir);
 		}
 	}
+	/*---------------------
+	function _swfupload()
+	通过swfupload上传的新图片
+	---------------------*/
+	if(is_array($_SESSION['bigfile_info']))
+	{
+		foreach($_SESSION['bigfile_info'] as $k=>$v)
+		{
+			$truefile = $cfg_basedir.$v;
+			if(strlen($v)<2 || !file_exists($truefile)) continue;
+			$info = '';
+			$imginfos = GetImageSize($truefile, $info);
+			$litpicname = $pagestyle > 2 ? GetImageMapDD($v, $cfg_ddimg_width) : $v;
+			$imginfo =  !empty(${'picinfook'.$k}) ? ${'picinfook'.$k} : '';
+			$imgurls .= "{dede:img ddimg='$litpicname' text='$imginfo' width='".$imginfos[0]."' height='".$imginfos[1]."'} $v {/dede:img}\r\n";
+		}
+	}
+	
 	$imgurls = addslashes($imgurls);
 
 	//分析处理附加表数据
@@ -382,6 +365,7 @@ else if($dopost=='save')
 		$query = "Update `$addtable`
       	set typeid='$typeid',
       	pagestyle='$pagestyle',
+		body='$body',
       	maxwidth = '$maxwidth',
       	ddmaxwidth = '$ddmaxwidth',
       	pagepicnum = '$pagepicnum',
@@ -401,12 +385,22 @@ else if($dopost=='save')
 
 	//生成HTML
 	UpIndexKey($id,$arcrank,$typeid,$sortrank,$tags);
-	$arcUrl = MakeArt($id,true,true);
+	if($cfg_remote_site=='Y' && $isremote=="1")
+	{	
+		if($serviterm!=""){
+			list($servurl,$servuser,$servpwd) = explode(',',$serviterm);
+			$config=array( 'hostname' => $servurl, 'username' => $servuser, 'password' => $servpwd,'debug' => 'TRUE');
+		}else{
+			$config=array();
+		}
+		if(!$ftp->connect($config)) exit('Error:None FTP Connection!');
+	}
+	$arcUrl = MakeArt($id,true,true,$isremote);
 	if($arcUrl=='')
 	{
 		$arcUrl = $cfg_phpurl."/view.php?aid=$id";
 	}
-
+	ClearMyAddon($id, $title);
 	//返回成功信息
 	$msg =
 	" 　　请选择你的后续操作：
@@ -418,7 +412,7 @@ else if($dopost=='save')
     &nbsp;&nbsp;
     <a href='catalog_do.php?cid=$typeid&dopost=listArchives'><u>管理已发布图片</u></a>
     &nbsp;&nbsp;
-    <a href='catalog_main.php'><u>网站栏目管理</u></a>
+    $backurl
     ";
 
 	$wintitle = "成功更改图集！";

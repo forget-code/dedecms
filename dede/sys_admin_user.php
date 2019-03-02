@@ -5,13 +5,13 @@ require_once(DEDEINC."/datalistcp.class.php");
 setcookie("ENV_GOBACK_URL",$dedeNowurl,time()+3600,"/");
 if(empty($rank))
 {
-	$rank="";
+	$rank = '';
 }
 else
 {
-	$rank = " where #@__admin.usertype='$rank' ";
+	$rank = " where CONCAT(#@__admin.usertype)='$rank' ";
 }
-$dsql->SetQuery("select rank,typename From #@__admintype");
+$dsql->SetQuery("select rank,typename From `#@__admintype` ");
 $dsql->Execute();
 while($row = $dsql->GetObject())
 {

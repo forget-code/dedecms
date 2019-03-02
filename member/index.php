@@ -1,13 +1,17 @@
 <?php
 require_once(dirname(__FILE__)."/config.php");
-if(empty($uid))
-{
-	$uid = '';
-}
+
+$uid=empty($uid)? "" : RemoveXSS($uid); 
+
 if(empty($action))
 {
 	$action = '';
 }
+if(empty($aid))
+{
+	$aid = '';
+}
+$menutype = 'mydede';
 
 //会员后台
 if($uid=='')
@@ -22,12 +26,10 @@ if($uid=='')
 		$minfos = $dsql->GetOne("Select * From `#@__member_tj` where mid='".$cfg_ml->M_ID."'; ");
 		$minfos['totaluse'] = $cfg_ml->GetUserSpace();
 		$minfos['totaluse'] = number_format($minfos['totaluse']/1024/1024,2);
-		if($cfg_mb_max>0)
-		{
+		if($cfg_mb_max > 0) {
 			$ddsize = ceil( ($minfos['totaluse']/$cfg_mb_max) * 100 );
 		}
-		else
-		{
+		else {
 			$ddsize = 0;
 		}
 
@@ -52,7 +54,10 @@ if($uid=='')
 		/** 调用访客记录 **/
 		$_vars['mid'] = $cfg_ml->M_ID;
 		
-		$cfg_ml->fields['face'] = empty($cfg_ml->fields['face']) ? 'images/nopic.gif' : $cfg_ml->fields['face'];
+		if(empty($cfg_ml->fields['face']))
+		{
+			$cfg_ml->fields['face']=($cfg_ml->fields['sex']=='女')? 'templets/images/dfgirl.png' : 'templets/images/dfboy.png';
+		}
 
 		/** 我的收藏 **/
 		$favorites = array();
@@ -61,17 +66,39 @@ if($uid=='')
 		{
 			$favorites[] = $arr;
 		}
+		
+        /** 欢迎新朋友 **/
+		$sql = "SELECT * FROM `#@__member` ORDER BY mid desc limit 3";
+		$newfriends = array();
+		$dsql->SetQuery($sql);
+		$dsql->Execute();
+		while ($row = $dsql->GetArray()) {
+			$newfriends[] = $row;
+		}
 
 		/** 好友记录 **/
-		$sql = "Select * From `#@__member_friends` where  mid='{$cfg_ml->M_ID}' And ftype!='-1'  order by addtime desc limit 10";
+		$sql = "SELECT F.*,M.face,M.sex FROM `#@__member` AS M LEFT JOIN #@__member_friends AS F ON F.fid=M.mid WHERE F.mid='{$cfg_ml->M_ID}' ORDER BY F.addtime desc LIMIT 6";
 		$friends = array();
 		$dsql->SetQuery($sql);
 		$dsql->Execute();
 		while ($row = $dsql->GetArray()) {
 			$friends[] = $row;
 		}
+		
 		/** 有没新短信 **/
-		$pms = $dsql->GetOne("SELECT COUNT(*) AS nums FROM #@__member_pms WHERE toid='{$cfg_ml->M_ID}' AND `hasview`=0 AND folder = 'inbox'");		
+		$pms = $dsql->GetOne("SELECT COUNT(*) AS nums FROM #@__member_pms WHERE toid='{$cfg_ml->M_ID}' AND `hasview`=0 AND folder = 'inbox'");	
+		
+		/** 查询会员状态 **/
+		$moodmsg = $dsql->GetOne("SELECT * FROM #@__member_msg WHERE mid='{$cfg_ml->M_ID}' ORDER BY dtime desc");	
+
+		/** 会员操作日志 **/
+		$sql = "SELECT * From `#@__member_feed` where ischeck=1 order by fid desc limit 8";
+		$feeds = array();
+		$dsql->SetQuery($sql);
+		$dsql->Execute();
+		while ($row = $dsql->GetArray()) {
+			$feeds[] = $row;
+		}
 
 		$dpl = new DedeTemplate();
 		$tpl = dirname(__FILE__)."/templets/index.htm";
@@ -86,7 +113,7 @@ function space_index(){  }
 ------------------------------*/
 else
 {
-	require_once(DEDEMEMBER."/inc/config_space.php");
+	require_once(DEDEMEMBER.'/inc/config_space.php');
 	if($action == '')
 	{
 		include_once(DEDEINC."/channelunit.func.php");
@@ -125,9 +152,9 @@ else
 			{
 				$last_vid = $uid;
 			}
-			PutCookie('last_vtime',$vtime,3600*24,"/");
-			PutCookie('last_vid',$last_vid,3600*24,"/");
-			if($cfg_ml->IsLogin() && $cfg_ml->M_LoginID!=$uid)
+			PutCookie('last_vtime', $vtime, 3600*24, '/');
+			PutCookie('last_vid', $last_vid, 3600*24, '/');
+			if($cfg_ml->IsLogin() && $cfg_ml->M_LoginID != $uid)
 			{
 				$vip = GetIP();
 				$arr = $dsql->GetOne("Select * From `#@__member_vhistory` where mid='{$_vars['mid']}' And vid='{$cfg_ml->M_ID}' ");
@@ -146,10 +173,12 @@ else
 		}
 		$dpl->LoadTemplate($tplfile);
 		$dpl->display();
+		exit();
 	}
 	else
 	{
-		require_once(DEDEMEMBER."/inc/space_action.php");
+		require_once(DEDEMEMBER.'/inc/space_action.php');
+		exit();
 	}
 }
 

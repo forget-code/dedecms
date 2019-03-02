@@ -17,8 +17,8 @@ function lib_type(&$ctag,&$refObj)
 
   if(empty($typeid)) return '';
 
-	$row = $dsql->GetOne("Select id,typedir,isdefault,defaultname,ispart,namerule2,typename,moresite,siteurl,sitepath 
-	                     From `#@__arctype` where id='$typeid' ");
+	$row = $dsql->GetOne("Select id,typename,typedir,isdefault,ispart,defaultname,namerule2,moresite,siteurl,sitepath 
+	                      From `#@__arctype` where id='$typeid' ");
 	if(!is_array($row)) return '';
 	if(trim($innertext)=='') $innertext = GetSysTemplets("part_type_list.htm");
 	
@@ -32,8 +32,7 @@ function lib_type(&$ctag,&$refObj)
 	}
 	else
 	{
-		$row['typelink'] = GetTypeUrl($row['id'],MfTypedir($row['typedir']),$row['isdefault'],
-		                    $row['defaultname'],$row['ispart'],$row['namerule2'],$row['siteurl'],$row['sitepath']);
+		$row['typelink'] = $row['typeurl'] = GetOneTypeUrlA($row);
 		foreach($dtp->CTags as $tagid=>$ctag)
 		{
 			if(isset($row[$ctag->GetName()])) $dtp->Assign($tagid,$row[$ctag->GetName()]);

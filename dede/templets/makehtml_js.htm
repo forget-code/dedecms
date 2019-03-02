@@ -7,8 +7,8 @@
 function SelectTemplets(fname)
 {
    if(document.all){
-     var posLeft = window.event.clientY-200;
-     var posTop = window.event.clientX-300;
+     var posLeft = window.event.clientY-100;
+     var posTop = window.event.clientX-400;
    }
    else{
      var posLeft = 100;
@@ -36,7 +36,7 @@ function SelectTemplets(fname)
         <?php
        if(empty($cid)) $cid="0";
        $tl = new TypeLink($cid);
-       $typeOptions = $tl->GetOptionArray($cid,$cuserLogin->getUserChannel(),0,1);
+       $typeOptions = $tl->GetOptionArray($cid,$admin_catalogs,0,1);
        echo "<select name='typeid' style='width:300'>\r\n";
        if($cid=="0") echo "<option value='0' selected>所有栏目...</option>\r\n";
        echo $typeOptions;
@@ -69,7 +69,14 @@ function SelectTemplets(fname)
     </tr>
     <tr> 
       <td height="20" colspan="2" bgcolor="#FAFAF1" align="center">
-      	<input name="b112" type="button" class="coolbg np" value="生成/更新JS文件" onClick="document.form1.submit();" style="width:120px"> 
+      	<input name="b112" type="button" class="coolbg np" value="生成/更新JS文件" onClick="document.form1.submit();" style="width:120px">
+        <?php 
+            if($cfg_remote_site=='Y')
+            {
+          ?> 　
+             <input name="isremote" type="checkbox" id="isremote" value="1">是否同步远程发发布
+             <?php GetFtp();?>
+          <?php }?>  
       </td>
     </tr>
   </form>
